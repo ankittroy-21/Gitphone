@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+python-telegram-bot==21.*
+PyGithub
+diff-match-patch
+supabase
+python-dotenv
+pydantic
+httpx

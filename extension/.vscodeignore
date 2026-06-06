@@ -1,0 +1,13 @@
+# Don't include these in the published .vsix package
+.vscode/
+src/
+node_modules/
+.gitignore
+tsconfig.json
+esbuild.config.js
+**/*.map
+**/*.ts
+!out/**
+.env*
+*.md
+!README.md

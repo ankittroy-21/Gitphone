@@ -1,0 +1,80 @@
+{
+  "name": "gitphone",
+  "displayName": "GitPhone",
+  "description": "Commit to GitHub from anywhere — stage in VS Code, commit via Telegram bot",
+  "version": "1.0.0",
+  "publisher": "ankittroy-21",
+  "license": "SEE LICENSE IN LICENSE",
+  "homepage": "https://github.com/ankittroy-21/gitphone#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ankittroy-21/gitphone.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ankittroy-21/gitphone/issues"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "SCM Providers"
+  ],
+  "keywords": [
+    "github",
+    "git",
+    "telegram",
+    "commit",
+    "sync",
+    "streak",
+    "mobile"
+  ],
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#1a1a2e",
+    "theme": "dark"
+  },
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "gitphone.openSetup",
+        "title": "GitPhone: Open Setup"
+      },
+      {
+        "command": "gitphone.openPanel",
+        "title": "GitPhone: Open Panel"
+      },
+      {
+        "command": "gitphone.clearCache",
+        "title": "GitPhone: Clear Local Cache"
+      },
+      {
+        "command": "gitphone.checkStatus",
+        "title": "GitPhone: Check Status"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node",
+    "watch": "npm run build -- --watch",
+    "compile": "tsc -p ./ --noEmit",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "diff": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/diff": "^5.0.9",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0",
+    "esbuild": "^0.19.0",
+    "@vscode/vsce": "^2.22.0"
+  }
+}

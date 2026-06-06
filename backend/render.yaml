@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: gitphone-backend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: YOUR_SUPABASE_URL
+        sync: false
+      - key: YOUR_SUPABASE_KEY
+        sync: false
+      - key: WEBHOOK_URL
+        sync: false
+      - key: ADMIN_TELEGRAM_IDS
+        sync: false          # comma-separated: 123456789,987654321
+      - key: LOG_CHANNEL_ID
+        sync: false          # private channel ID: -1001234567890
+      - key: PORT
+        value: "8000"
