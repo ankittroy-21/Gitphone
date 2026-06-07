@@ -1,146 +1,97 @@
-# GitPhone
+# GitPhone 📱⚡️
 
-> **Commit to GitHub from your phone — via Telegram bot**
+> **The Developer's Remote Control for GitHub.** Stage code in VS Code, commit from Telegram. Maintain your streak, even when you're away from your desk.
 
-GitPhone is a developer tool that lets you stage code changes in VS Code and commit them to GitHub from anywhere using a Telegram bot — no laptop needed.
-
----
-
-## How It Works
-
-```
-1. Save a file in VS Code
-       ↓
-2. GitPhone extension computes a diff locally
-       ↓
-3. Diff is synced to the cloud (Supabase)
-       ↓
-4. Open Telegram → /files
-       ↓
-5. Select files, type commit message, tap 🚀
-       ↓
-6. Real GitHub commit — streak maintained ✅
-```
+[![Hackathon Submission](https://img.shields.io/badge/Hackathon-Submission-orange?style=for-the-badge)](https://github.com/ankittroy-21/gitphone)
+[![User Guide](https://img.shields.io/badge/User-Guide-blue?style=for-the-badge&logo=read-the-docs)](USER_GUIDE.md)
+[![Bot](https://img.shields.io/badge/Telegram-@GitphoneBot-blue?style=for-the-badge&logo=telegram)](https://t.me/gitphonebot)
+[![Extension](https://img.shields.io/badge/VS_Code-GitPhone-blue?style=for-the-badge&logo=visual-studio-code)](https://marketplace.visualstudio.com/items?itemName=ankittroy-21.gitphone)
 
 ---
 
-## Demo
+## 📽️ Visual Showcase
 
-```
-User: /files
+### The Extension
+![GitPhone Marketplace](public/images/Gitphone.png)
+*GitPhone on the VS Code Marketplace - Seamless integration with your IDE.*
 
-Bot: 📁 john/my-project • main
-     Select files to commit:
-     ☐  src/index.js    1.2KB
-     ☐  README.md       0.8KB
-     [☑️ Select All]  [✅ Done]
+### The Setup
+![Extension Setup](public/images/Extension.png)
+*Simple one-time setup: Connect your Telegram ID and your GitHub account.*
 
-User: [taps src/index.js] → [taps Done]
-
-Bot: ✏️ Type your commit message:
-     • src/index.js
-
-User: fix: updated auth logic
-
-Bot: 📦 Review Commit
-     • src/index.js
-     💬 fix: updated auth logic
-     🌿 main • john/my-project
-     [🚀 Commit Now] [❌ Cancel]
-
-User: [taps Commit Now]
-
-Bot: ✅ Committed!
-     🔗 abc123f
-     💬 fix: updated auth logic
-     🔥 Streak maintained!
-```
+### The Bot in Action
+![Bot Success](public/images/Bot.png)
+*Commit success! Manage files, write messages, and get PR links directly in Telegram.*
 
 ---
 
-## Setup (8 minutes)
+## 🚀 The Problem & Solution
 
-1. **Supabase** — Create free project, run `setup/schema.sql`
-2. **GitHub** — Create fine-grained PAT with Contents read/write
-3. **Telegram** — Get your ID from @userinfobot, start @GitPhoneBot
-4. **VS Code** — Install extension, fill 5 fields, connect
+**The Problem:** Developers often have brilliant ideas or small fixes while on the move, but they can't commit them without their laptop. Maintaining a GitHub streak shouldn't require being tethered to a desk.
 
-→ Full guide: [docs/setup-guide.md](public/docs/setup-guide.md)
+**The Solution:** GitPhone bridges the gap between mobile convenience and professional version control. By transforming Telegram into a powerful Git CLI, we allow developers to finalize and push their "dirty" workspace changes from anywhere.
 
 ---
 
-## Architecture
+## ✨ Features
 
-```
-VS Code Extension (TypeScript)
-  → Watches file saves
-  → Computes diffs locally
-  → POSTs to Render backend
-
-Backend (Python/FastAPI + Telegram Bot)
-  → Runs on Render (free, webhook mode)
-  → Stores diffs in Supabase
-  → Commits to GitHub via PyGithub
-
-Supabase (PostgreSQL)
-  → Users, staged_files, commit_log
-```
+- **Real-time Sync:** Every file save in VS Code is instantly synced to the cloud.
+- **Single-Phase Workflow:** No complex staging. If it's modified, it's ready to sync.
+- **Dynamic Branching:** Create new feature branches on the fly if `main` is protected.
+- **Automatic PRs:** Get a merge link the moment you commit to a non-default branch.
+- **State Reconciliation:** Manual commits in VS Code are automatically reflected in the bot.
 
 ---
 
-## Repository Structure
+## 🛠️ Tech Stack
 
-```
-gitphone/
-├── backend/        ← FastAPI + Telegram bot (Python)
-├── extension/      ← VS Code extension (TypeScript)
-├── public/         ← Schema + docs (you are here)
-│   ├── setup/
-│   │   └── schema.sql     ← Run this in Supabase
-│   └── docs/
-│       ├── setup-guide.md
-│       └── troubleshooting.md
-└── .context/       ← AI agent context files
-```
-
----
-
-## Tech Stack
-
-| Layer | Technology |
+| Component | Technology |
 |---|---|
-| Bot | python-telegram-bot v21 (webhook) |
-| Backend | FastAPI + uvicorn |
-| GitHub API | PyGithub |
-| Diff (backend) | diff-match-patch (Google) |
-| Database | Supabase (PostgreSQL) |
-| Hosting | Render (free, no credit card) |
-| Extension | TypeScript + VS Code API |
-| Diff (extension) | diff (npm) |
-| HTTP client | axios |
+| **Bot Framework** | `python-telegram-bot` v21 (Asynchronous) |
+| **Backend API** | FastAPI + Uvicorn |
+| **Database** | Supabase (PostgreSQL + Real-time) |
+| **GitHub Engine** | PyGithub (REST API wrapper) |
+| **IDE Extension** | VS Code API + TypeScript |
+| **Diff Engine** | `diff-match-patch` (Google) |
 
 ---
 
-## Security Notes
+## 🤖 Bot Commands
 
-- GitHub tokens stored as **plain text** in MVP (AES-256 encryption post-launch)
-- Bot only responds to **whitelisted Telegram IDs** (your registered users)
-- Tokens are **never logged or exposed** in API responses
-- BYOD (Bring Your Own Database) model planned post-launch for full privacy
-
----
-
-## Roadmap
-
-See [.context/13_OPEN_SOURCE_ROADMAP.md](.context/13_OPEN_SOURCE_ROADMAP.md) for post-hackathon plans including:
-- AES-256 token encryption
-- Scheduled commits
-- Multi-repo support
-- Branch switching
-- BYOD model
+| Command | Description |
+|---|---|
+| `/start` | Welcome & onboarding |
+| `/auth` | Secure GitHub login (Device Flow) |
+| `/files` | View and select staged files to commit |
+| `/repo` | Show/Set active repository |
+| `/branch` | Switch or create branches |
+| `/preview` | See diffs of your changes |
+| `/log` | View your GitPhone commit history |
+| `/status` | Check connection & system health |
+| `/clear` | Wipe your remote staging area |
 
 ---
 
-## License
+## 🏗️ Technical Architecture
 
-Custom Proprietary
+1.  **Extension (TypeScript):** Uses `vscode.workspace` watchers to detect changes. It computes the diff and full content, then pushes it to the FastAPI backend.
+2.  **Backend (Python):** Handles authentication via GitHub Device Flow. It reconciles the local Git state with the Supabase database.
+3.  **Bot (Telegram):** Provides the interactive UI for file selection and commit messaging.
+4.  **GitHub Service:** Dynamically fetches the latest SHAs to prevent conflicts and executes commits via the Contents API.
+
+---
+
+## 🔒 Security & Privacy
+
+- **OAuth 2.0:** We use GitHub's official Device Flow. We never see your password.
+- **Isolation:** Users are strictly isolated by their unique Telegram ID.
+- **BYOD (Roadmap):** Future support for "Bring Your Own Database" for enterprise privacy.
+
+---
+
+## 📄 Documentation
+*   **[Full User Guide](USER_GUIDE.md)**
+*   **[Setup & Deployment Guide](public/docs/setup-guide.md)**
+*   **[Troubleshooting](public/docs/troubleshooting.md)**
+
+
