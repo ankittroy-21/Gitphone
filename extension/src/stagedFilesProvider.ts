@@ -12,8 +12,8 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import axios from 'axios';
 import { getConfig, isConfigured } from './config';
+import { syncFile, SyncFilePayload, extractErrorMessage } from './api';
 
 // ── Git Extension API types (inline to avoid needing git.d.ts) ──────────────
 
@@ -27,6 +27,7 @@ interface GitChange {
 interface GitRepository {
   readonly rootUri: vscode.Uri;
   readonly state: {
+    readonly HEAD: { commit?: string; name?: string } | undefined;
     readonly indexChanges: GitChange[];          // staged
     readonly workingTreeChanges: GitChange[];    // unstaged modified
     readonly mergeChanges: GitChange[];
@@ -323,33 +324,34 @@ export async function syncStagedToBackend(
     },
     async (progress) => {
       let synced = 0;
+      const baseSha = provider.repository?.state.HEAD?.commit || 'new_file';
+      const activeRepo = config.defaultRepo;
+      const activeBranch = provider.repository?.state.HEAD?.name || config.branch;
+
       for (const change of staged) {
         progress.report({ message: `${synced + 1}/${staged.length}: ${path.basename(change.uri.fsPath)}` });
         try {
           const content = await vscode.workspace.fs.readFile(change.uri);
           const changeType = _gitChangeType(change.status);
 
-          await axios.post(
-            `${config.backendUrl}/sync`,
-            {
-              telegram_id: config.telegramId,
-              filepath: _relPath(change.uri.fsPath, provider.repository!.rootUri.fsPath),
-              content: Buffer.from(content).toString('base64'),
-              encoding: 'base64',
-              change_type: changeType,
-              is_binary: false,
-            },
-            {
-              timeout: 10_000,
-              headers: {
-                'X-Telegram-Id': config.telegramId,
-                'X-Api-Key': config.apiKey ?? '',
-              },
-            },
-          );
+          const payload: SyncFilePayload = {
+            telegram_id: config.telegramId,
+            filepath: _relPath(change.uri.fsPath, provider.repository!.rootUri.fsPath),
+            diff: null, // Sending full content for staged files
+            full_content: Buffer.from(content).toString('base64'),
+            base_sha: changeType === 'create' ? 'new_file' : baseSha,
+            is_binary: false, // TODO: detect binary
+            file_size: content.length,
+            active_repo: activeRepo,
+            active_branch: activeBranch,
+            change_type: changeType,
+          };
+
+          await syncFile(payload);
           synced++;
         } catch (err: any) {
-          console.error(`[GitPhone] sync error for ${change.uri.fsPath}:`, err?.message);
+          const msg = extractErrorMessage(err);
+          console.error(`[GitPhone] sync error for ${change.uri.fsPath}:`, msg);
         }
       }
 

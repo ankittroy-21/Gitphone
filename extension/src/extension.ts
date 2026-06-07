@@ -69,10 +69,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
 
     // Stage a file from the CHANGES section (click + icon)
-    vscode.commands.registerCommand('gitphone.stageFile', async (item: FileItem) => {
-      if (!item?.change || !sidebarProvider.repository) return;
+    vscode.commands.registerCommand('gitphone.stageFile', async (item: any) => {
+      const uri = item?.change?.uri || item?.resourceUri || (item instanceof vscode.Uri ? item : undefined);
+      if (!uri || !sidebarProvider.repository) return;
       try {
-        await sidebarProvider.repository.add([item.change.uri]);
+        await sidebarProvider.repository.add([uri]);
         // git API fires onDidChange -> sidebar updates automatically
       } catch (err: any) {
         vscode.window.showErrorMessage(`Failed to stage: ${err.message}`);
@@ -80,10 +81,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
 
     // Unstage a file from the STAGED section (click - icon)
-    vscode.commands.registerCommand('gitphone.unstageFile', async (item: FileItem) => {
-      if (!item?.change || !sidebarProvider.repository) return;
+    vscode.commands.registerCommand('gitphone.unstageFile', async (item: any) => {
+      const uri = item?.change?.uri || item?.resourceUri || (item instanceof vscode.Uri ? item : undefined);
+      if (!uri || !sidebarProvider.repository) return;
       try {
-        await sidebarProvider.repository.revert([item.change.uri]);
+        await sidebarProvider.repository.revert([uri]);
       } catch (err: any) {
         vscode.window.showErrorMessage(`Failed to unstage: ${err.message}`);
       }
