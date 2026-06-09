@@ -12,15 +12,15 @@
 ## 📽️ Visual Showcase
 
 ### The Extension
-![GitPhone Marketplace](public/images/Gitphone.png)
+![GitPhone Marketplace](public/Images/Gitphone.png)
 *GitPhone on the VS Code Marketplace - Seamless integration with your IDE.*
 
 ### The Setup
-![Extension Setup](public/images/Extension.png)
+![Extension Setup](public/Images/Extension.png)
 *Simple one-time setup: Connect your Telegram ID and your GitHub account.*
 
 ### The Bot in Action
-![Bot Success](public/images/Bot.png)
+![Bot Success](public/Images/Bot.png)
 *Commit success! Manage files, write messages, and get PR links directly in Telegram.*
 
 ---
