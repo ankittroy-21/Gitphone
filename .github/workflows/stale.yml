@@ -1,0 +1,47 @@
+# Stale bot configuration
+# Closes issues/PRs that have gone quiet, reducing admin backlog.
+# Docs: https://github.com/actions/stale
+
+name: Mark Stale Issues and PRs
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'   # Every Monday at 09:00 IST (03:30 UTC)
+  workflow_dispatch:        # Allow manual trigger
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          # ── Issues ─────────────────────────────────────────────────────────
+          days-before-issue-stale: 30
+          days-before-issue-close: 7
+          stale-issue-label: 'stale'
+          stale-issue-message: >
+            👋 This issue has been inactive for 30 days. It will be closed in 7 days
+            unless there is new activity. If this is still relevant, please comment
+            or add more context. Thank you!
+          close-issue-message: >
+            🔒 Closing this issue due to inactivity. Feel free to reopen if it's
+            still relevant — just add a comment explaining the current status.
+
+          # ── Pull Requests ───────────────────────────────────────────────────
+          days-before-pr-stale: 14
+          days-before-pr-close: 7
+          stale-pr-label: 'stale'
+          stale-pr-message: >
+            👋 This PR has been inactive for 14 days. It will be closed in 7 days
+            unless updated. Please push changes, resolve conflicts, or leave a comment
+            if you need more time. For ECSoC26 — make sure your PR has the label!
+          close-pr-message: >
+            🔒 Closing this PR due to inactivity. Feel free to reopen once the changes
+            are ready for review.
+
+          # ── Never stale ────────────────────────────────────────────────────
+          exempt-issue-labels: 'pinned,security,in-progress,ECSoC26,ECSoC26-L1,ECSoC26-L2,ECSoC26-L3,good-issue,good-pr,good-ui,good-backend'
+          exempt-pr-labels: 'pinned,security,in-progress,ECSoC26,ECSoC26-L1,ECSoC26-L2,ECSoC26-L3,good-pr,good-ui,good-backend'
+          exempt-all-milestones: true
+
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
