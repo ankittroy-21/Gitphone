@@ -131,7 +131,7 @@
   },
   "dependencies": {
     "axios": "^1.6.0",
-    "diff": "^5.1.0"
+    "diff": "^9.0.0"
   },
   "devDependencies": {
     "@types/vscode": "^1.85.0",
