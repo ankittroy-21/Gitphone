@@ -1,0 +1,8 @@
+# .coderabbit.yaml
+reviews:
+  request_changes_workflow: false  # Don't block PRs, just comment
+  high_level_summary: true
+  poem: false                       # Disable the fun poem (optional)
+  review_status: true
+  collapse_walkthrough: false
+language: "en-US"
