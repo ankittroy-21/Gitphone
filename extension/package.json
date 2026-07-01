@@ -130,15 +130,15 @@
     "package": "vsce package"
   },
   "dependencies": {
-    "axios": "^1.6.0",
+    "axios": "^1.18.1",
     "diff": "^5.1.0"
   },
   "devDependencies": {
-    "@types/vscode": "^1.85.0",
+    "@types/vscode": "^1.125.0",
     "@types/diff": "^5.0.9",
     "@types/node": "^20.0.0",
     "typescript": "^5.3.0",
-    "esbuild": "^0.19.0",
+    "esbuild": "^0.28.1",
     "@vscode/vsce": "^2.22.0"
   }
 }
