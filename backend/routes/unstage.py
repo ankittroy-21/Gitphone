@@ -20,6 +20,12 @@ async def unstage_file(file_id: str, _auth: str = Depends(require_api_key)):
         if not result.data:
             raise HTTPException(status_code=404, detail="Staged file not found.")
 
+        # Ownership check: a valid API key only proves who the caller is, not
+        # that they own this specific file. Without this, any authenticated
+        # user could unstage/delete another user's staged file (IDOR).
+        if str(result.data[0].get("telegram_id")) != str(_auth):
+            raise HTTPException(status_code=404, detail="Staged file not found.")
+
         # Delete it
         db.table("staged_files").delete().eq("id", file_id).execute()
         return {"ok": True, "deleted_id": file_id}
