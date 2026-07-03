@@ -6,7 +6,7 @@ Deployed on Render (free tier, webhook mode = no sleeping).
 
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Header, HTTPException
 from telegram import Update
 from telegram.ext import Application
 
@@ -108,12 +108,19 @@ app = FastAPI(
 
 # --- Telegram Webhook Route ------------------------------------------------------------------------------
 @app.post("/webhook")
-async def telegram_webhook(request: Request):
+async def telegram_webhook(
+    request: Request,
+    x_telegram_bot_api_secret_token: str = Header(None)
+):
+    expected_token = os.getenv("TELEGRAM_SECRET_TOKEN")
+    
+    if expected_token and x_telegram_bot_api_secret_token != expected_token:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+        
     data = await request.json()
     update = Update.de_json(data, telegram_app.bot)
     await telegram_app.process_update(update)
     return {"ok": True}
-
 
 # --- API Routes ------------------------------------------------------------------------------------------------
 from routes.register import router as register_router
