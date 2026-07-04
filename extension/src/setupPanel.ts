@@ -1,4 +1,4 @@
-﻿/**
+/**
  * setupPanel.ts â€” GitPhone first-time setup.
  * Uses VS Code's built-in GitHub OAuth â€” no manual PAT needed.
  * Falls back to manual PAT entry via Advanced section.
@@ -120,6 +120,28 @@ export class SetupPanel {
     branch: string;
     backendUrl: string;
   }): Promise<void> {
+    const repoStr = data.defaultRepo.trim();
+    let parsedRepo = repoStr;
+    
+    if (repoStr.startsWith('http') || repoStr.includes('github.com')) {
+      const match = repoStr.match(/github\.com\/([^\/\s]+\/[^\/\s]+?)(?:\.git)?$/i);
+      if (match) {
+        parsedRepo = match[1];
+      } else {
+        vscode.window.showErrorMessage('Invalid GitHub repository URL. Please provide a correct URL (e.g., https://github.com/owner/repo).');
+        this._panel.webview.postMessage({ type: 'error', message: 'Invalid repository URL.' });
+        return;
+      }
+    } else {
+      if (!/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(repoStr)) {
+        vscode.window.showErrorMessage('Invalid GitHub repository format. Please use "username/repo" or a valid GitHub URL.');
+        this._panel.webview.postMessage({ type: 'error', message: 'Invalid repository format.' });
+        return;
+      }
+    }
+    
+    data.defaultRepo = parsedRepo;
+
     this._panel.webview.postMessage({ type: 'loading', message: 'Connecting to GitPhone...' });
 
     try {
@@ -582,10 +604,6 @@ export class SetupPanel {
       }
       if (!/^\\d{6,12}$/.test(telegramId)) {
         showStatus('error', 'Telegram ID must be a 6-12 digit number');
-        return;
-      }
-      if (!defaultRepo.includes('/') || defaultRepo.split('/').length !== 2) {
-        showStatus('error', 'Repo must be in format: username/repo-name');
         return;
       }
 
