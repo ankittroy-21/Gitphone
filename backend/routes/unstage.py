@@ -16,17 +16,23 @@ async def unstage_file(file_id: str, telegram_id: str = Depends(require_api_key)
     try:
         db = get_client()
         # Verify file exists
-        result = db.table("staged_files").select("id, telegram_id").eq("id", file_id).execute()
+        result = (
+            db.table("staged_files")
+            .select("id, telegram_id")
+            .eq("id", file_id)
+            .eq("telegram_id", telegram_id)
+            .execute()
+        )
         if not result.data:
             raise HTTPException(status_code=404, detail="Staged file not found.")
 
-        # Verify ownership — prevent IDOR: ensure the file belongs to the requesting user
-        file_owner = result.data[0].get("telegram_id")
-        if str(file_owner) != str(telegram_id):
-            raise HTTPException(status_code=403, detail="You do not have permission to unstage this file.")
-
         # Delete it
-        db.table("staged_files").delete().eq("id", file_id).execute()
+        db.table("staged_files") \
+            .delete() \
+            .eq("id", file_id) \
+            .eq("telegram_id", telegram_id) \
+            .execute()
+        
         return {"ok": True, "deleted_id": file_id}
     except HTTPException:
         raise
