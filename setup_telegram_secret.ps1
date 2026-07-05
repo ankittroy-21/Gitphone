@@ -70,7 +70,9 @@ if ($envMap.ContainsKey("TELEGRAM_SECRET_TOKEN") -and $envMap["TELEGRAM_SECRET_T
     } else {
         # Generate a cryptographically secure 32-byte hex token
         $bytes = New-Object byte[] 32
-        [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+        $rng = [System.Security.Cryptography.RNGCryptoServiceProvider]::new()
+        $rng.GetBytes($bytes)
+        $rng.Dispose()
         $secretToken = [BitConverter]::ToString($bytes).Replace("-", "").ToLower()
         Write-Ok "Generated new secure token: $($secretToken.Substring(0, 8))..."
     }
