@@ -63,6 +63,7 @@ from supabase_service import (
     get_device_flow_state,
     delete_device_flow_state,
     update_github_token,
+    update_github_username,
     ban_user,
     unban_user,
     revoke_api_key,
@@ -329,10 +330,13 @@ async def _poll_device_auth(
                 user = get_user_by_telegram_id(telegram_id)
                 if user:
                     update_github_token(telegram_id, token)
+                    if username:
+                        update_github_username(telegram_id, username)
                 else:
                     upsert_user({
                         "telegram_id": telegram_id, 
                         "github_token": token,
+                        "github_username": (username or "").lower() or None,
                         "default_repo": "not-set", # Required column
                         "branch": "main"
                     })
