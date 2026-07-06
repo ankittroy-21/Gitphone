@@ -1,7 +1,7 @@
 fastapi>=0.138.2,<1.0.0
 uvicorn[standard]>=0.29.0,<1.0.0
 python-telegram-bot==21.*
-PyGithub>=2.3.0,<3.0.0
+PyGithub>=2.9.1,<3.0.0
 diff-match-patch>=20230430
 supabase>=2.4.0,<3.0.0
 python-dotenv>=1.0.0,<2.0.0
