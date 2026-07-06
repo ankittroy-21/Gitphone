@@ -3,7 +3,8 @@ main.py - FastAPI app entry point.
 Combines FastAPI HTTP routes + python-telegram-bot webhook in one process.
 Deployed on Render (free tier, webhook mode = no sleeping).
 """
-
+from dotenv import load_dotenv
+load_dotenv()
 import os
 import json
 from contextlib import asynccontextmanager
@@ -46,6 +47,7 @@ from bot import (
 )
 from admin import register_admin_handlers
 from channel_logger import init_logger, log_startup, log_shutdown
+from notifications import init_notifier
 from telegram.ext import CommandHandler, CallbackQueryHandler
 
 # --- Build Telegram Application ------------------------------------------------------------------------
@@ -93,15 +95,20 @@ async def lifespan(app: FastAPI):
     """Set webhook on startup, clean up on shutdown."""
     webhook_url = os.environ.get("WEBHOOK_URL", "").rstrip("/")
     await telegram_app.initialize()
-    await telegram_app.bot.set_webhook(
-        url=f"{webhook_url}/webhook",
-        allowed_updates=["message", "callback_query"],
-    )
-    print(f"[main] Webhook set to {webhook_url}/webhook")
+    webhook_kwargs = {
+        "url": f"{webhook_url}/webhook",
+        "allowed_updates": ["message", "callback_query"],
+    }
+    secret_token = os.environ.get("TELEGRAM_SECRET_TOKEN")
+    if secret_token:
+        webhook_kwargs["secret_token"] = secret_token
+    await telegram_app.bot.set_webhook(**webhook_kwargs)
+    print(f"[main] Webhook set to {webhook_url}/webhook (secret_token={'set' if secret_token else 'not set'})")
     await telegram_app.start()
 
     # Init channel logger and announce startup
     init_logger(telegram_app.bot)
+    init_notifier(telegram_app.bot)
     await log_startup(webhook_url)
 
     yield
@@ -164,8 +171,10 @@ from routes.version import router as version_router
 from routes.staged_files import router as staged_files_router
 from routes.unstage import router as unstage_router
 from routes.auth import router as auth_router
+from routes.github_webhook import router as github_webhook_router
 
 app.include_router(register_router)
+app.include_router(github_webhook_router)
 app.include_router(sync_router)
 app.include_router(version_router)
 app.include_router(staged_files_router)
