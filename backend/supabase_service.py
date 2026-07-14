@@ -4,11 +4,11 @@ Uses ONE central Supabase (ours). Users isolated by telegram_id.
 """
 
 import os
-from typing import Optional
-from supabase import create_client, Client
+
+from supabase import Client, create_client
 
 # --- Client Initialization ------------------------------------------------------------------------------
-_supabase: Optional[Client] = None
+_supabase: Client | None = None
 
 
 def get_client() -> Client:
@@ -22,7 +22,7 @@ def get_client() -> Client:
 
 # --- User Operations ---------------------------------------------------------------------------------------
 
-def get_user_by_telegram_id(telegram_id: str) -> Optional[dict]:
+def get_user_by_telegram_id(telegram_id: str) -> dict | None:
     """Returns user row or None if not registered."""
     try:
         result = get_client().table("users") \
@@ -35,7 +35,7 @@ def get_user_by_telegram_id(telegram_id: str) -> Optional[dict]:
         return None
 
 
-def upsert_user(user: dict) -> Optional[dict]:
+def upsert_user(user: dict) -> dict | None:
     """Insert or update user by telegram_id. Returns saved row."""
     try:
         result = get_client().table("users") \
@@ -60,7 +60,7 @@ def update_last_active(telegram_id: str) -> None:
 
 # --- Staged Files Operations ---------------------------------------------------------------------------
 
-def upsert_staged_file(payload: dict) -> Optional[dict]:
+def upsert_staged_file(payload: dict) -> dict | None:
     """
     Upsert a staged file diff.
     If an existing pending diff exists for the same (telegram_id, filepath) \u2192 update it.
@@ -119,29 +119,6 @@ def get_pending_files(telegram_id: str) -> list[dict]:
         print(f"[supabase] get_pending_files error: {e}")
         return []
 
-
-def get_staged_files_by_ids(file_ids: list[str]) -> list[dict]:
-    """Fetch specific staged file rows by UUID list."""
-    try:
-        result = get_client().table("staged_files") \
-            .select("*") \
-            .in_("id", file_ids) \
-            .execute()
-        return result.data or []
-    except Exception as e:
-        print(f"[supabase] get_staged_files_by_ids error: {e}")
-        return []
-
-
-def mark_files_committed(file_ids: list[str]) -> None:
-    """Mark staged files as committed after a successful GitHub push."""
-    try:
-        get_client().table("staged_files") \
-            .update({"status": "committed"}) \
-            .in_("id", file_ids) \
-            .execute()
-    except Exception as e:
-        print(f"[supabase] mark_files_committed error: {e}")
 
 
 # --- Commit Log ----------------------------------------------------------------------------------------------
@@ -276,16 +253,16 @@ def sync_pending_state(telegram_id: str, current_filepaths: list[str]) -> int:
             .eq("telegram_id", telegram_id) \
             .eq("status", "pending") \
             .execute()
-        
+
         if not result.data:
             return 0
-        
+
         # 2. Identify files that are no longer dirty in VS Code
         to_mark_committed = []
         for row in result.data:
             if row["filepath"] not in current_filepaths:
                 to_mark_committed.append(row["id"])
-        
+
         # 3. Batch update them to 'committed'
         if to_mark_committed:
             db.table("staged_files") \
@@ -293,7 +270,7 @@ def sync_pending_state(telegram_id: str, current_filepaths: list[str]) -> int:
                 .in_("id", to_mark_committed) \
                 .execute()
             return len(to_mark_committed)
-        
+
         return 0
     except Exception as e:
         print(f"[supabase] sync_pending_state error: {e}")

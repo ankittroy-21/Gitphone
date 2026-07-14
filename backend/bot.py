@@ -25,23 +25,45 @@ Admin Commands (ADMIN_TELEGRAM_IDS env var):
   /revoke <id>        - Force user to re-authenticate
 """
 
-import os
 import asyncio
-import httpx
+import os
 from datetime import datetime, timezone
-from typing import Optional
+
 import channel_logger
+import httpx
+from github_service import github_service
+from supabase_service import (
+    ban_user,
+    clear_all_staged,
+    count_stats,
+    get_all_users,
+    get_pending_files,
+    get_pending_files_by_repo,
+    get_recent_commits,
+    get_staged_files_by_ids,
+    get_user_by_telegram_id,
+    insert_commit_log,
+    mark_files_committed,
+    revoke_api_key,
+    unban_user,
+    unstage_file_by_path,
+    update_branch,
+    update_github_token,
+    update_last_active,
+    upsert_user,
+)
 from telegram import (
-    Update,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    Update,
 )
+from telegram.constants import ParseMode
 from telegram.ext import (
+    CallbackQueryHandler,
+    CommandHandler,
     ContextTypes,
     ConversationHandler,
-    CommandHandler,
     MessageHandler,
-    CallbackQueryHandler,
     filters,
 )
 from telegram.constants import ParseMode
@@ -152,7 +174,7 @@ def _build_files_keyboard(staged_files: list[dict], selected: set[str]) -> Inlin
     return InlineKeyboardMarkup(buttons)
 
 
-async def _check_registered(update: Update) -> Optional[dict]:
+async def _check_registered(update: Update) -> dict | None:
     """Return user row if registered and not banned, else None."""
     telegram_id = str(update.effective_user.id)
     user = get_user_by_telegram_id(telegram_id)
@@ -221,7 +243,7 @@ async def auth_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     if not GITHUB_CLIENT_ID:
         await update.message.reply_text(
             "[X] GitHub OAuth not configured.\n\n"
-            "The bot admin needs to set GITHUB\_CLIENT\_ID env var.",
+            r"The bot admin needs to set GITHUB\_CLIENT\_ID env var.",
             parse_mode=ParseMode.MARKDOWN
         )
         return ConversationHandler.END
@@ -280,7 +302,7 @@ async def auth_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         chat_id=update.effective_chat.id,
     ))
     context.user_data["auth_task"] = task
-    
+
     return ConversationHandler.END
 
 
@@ -325,7 +347,7 @@ async def _poll_device_auth(
                 token = data["access_token"]
                 username = github_service.get_username(token)
                 print(f"[_poll_device_auth] Success for {telegram_id} ({username})")
-                
+
                 # Store token - handle new users by providing required default_repo
                 user = get_user_by_telegram_id(telegram_id)
                 if user:
@@ -334,7 +356,7 @@ async def _poll_device_auth(
                         update_github_username(telegram_id, username)
                 else:
                     upsert_user({
-                        "telegram_id": telegram_id, 
+                        "telegram_id": telegram_id,
                         "github_token": token,
                         "github_username": (username or "").lower() or None,
                         "default_repo": "not-set", # Required column
@@ -382,8 +404,8 @@ async def _poll_device_auth(
     except Exception as e:
         print(f"[_poll_device_auth] Unexpected crash for {telegram_id}: {e}")
         try:
-            await context.bot.send_message(chat_id=chat_id, text=f"[X] Unexpected auth error. Try /auth again.")
-        except:
+            await context.bot.send_message(chat_id=chat_id, text="[X] Unexpected auth error. Try /auth again.")
+        except Exception:
             pass
 
 
@@ -457,7 +479,7 @@ async def repo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=InlineKeyboardMarkup([[
             InlineKeyboardButton(
-                f"View on GitHub \u2197",
+                "View on GitHub \u2197",
                 url=f"https://github.com/{active_repo}"
             )
         ]])
@@ -959,7 +981,7 @@ async def protected_branch_name_handler(update: Update, context: ContextTypes.DE
     # Actually, it's better to just finish this state and tell user to click commit again,
     # OR we can just trigger the commit here.
     # To keep it simple and safe, let's show the review screen again with the new branch.
-    
+
     selected = context.user_data.get("selected_files", set())
     staged_data = context.user_data.get("staged_data", {})
     selected_names = [staged_data[fid]["filepath"] for fid in selected if fid in staged_data]
@@ -999,7 +1021,7 @@ async def commit_now_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     active_repo   = user.get("active_repo") or user.get("default_repo")
     # Use the branch selected in the branch picker (if any), else user's active branch
     active_branch = context.user_data.get("commit_branch") or user.get("active_branch") or user.get("branch", "main")
-    
+
     # Fetch default branch to know if we need a PR
     default_branch = github_service.get_default_branch(user["github_token"], active_repo)
 
@@ -1026,10 +1048,10 @@ async def commit_now_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         commit_sha = result["commit_sha"]
         short_sha = commit_sha[:7] if commit_sha else "unknown"
         committed_ids = result.get("committed_ids", [])
-        
+
         # Only mark files that were ACTUALLY committed as 'committed'
         mark_files_committed(committed_ids)
-        
+
         # Log only committed files
         committed_rows = [r for r in staged_rows if r["id"] in committed_ids]
         committed_paths = [r["filepath"] for r in committed_rows]
@@ -1061,7 +1083,7 @@ async def commit_now_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         conflict_note = ""
         if result.get("conflict_files"):
             conflict_note = (
-                f"\n\n[Warning] Skipped (conflict): "
+                "\n\n[Warning] Skipped (conflict): "
                 + ", ".join(f"`{f}`" for f in result["conflict_files"])
             )
 
@@ -1158,7 +1180,7 @@ async def commit_force_callback(update: Update, context: ContextTypes.DEFAULT_TY
     telegram_id = str(update.effective_user.id)
     user = get_user_by_telegram_id(telegram_id)
     staged_rows = context.user_data.get("staged_rows_for_force", [])
-    file_ids = context.user_data.get("file_ids_for_force", [])
+    context.user_data.get("file_ids_for_force", [])
     commit_message = context.user_data.get("commit_message", "GitPhone force commit")
 
     if not staged_rows or not user:
@@ -1180,10 +1202,10 @@ async def commit_force_callback(update: Update, context: ContextTypes.DEFAULT_TY
         commit_sha = result["commit_sha"]
         short_sha = commit_sha[:7] if commit_sha else "unknown"
         committed_ids = result.get("committed_ids", [])
-        
+
         # Mark files as committed
         mark_files_committed(committed_ids)
-        
+
         # Log only committed files
         committed_rows = [r for r in staged_rows if r["id"] in committed_ids]
         committed_paths = [r["filepath"] for r in committed_rows]
@@ -1207,7 +1229,7 @@ async def commit_force_callback(update: Update, context: ContextTypes.DEFAULT_TY
             files=committed_paths,
             was_forced=True,
         )
-        
+
         # Clear selection
         context.user_data["selected_files"] = set()
 
@@ -1281,7 +1303,7 @@ async def log_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=InlineKeyboardMarkup([[
             InlineKeyboardButton(
-                f"View on GitHub \u2197",
+                "View on GitHub \u2197",
                 url=f"https://github.com/{active_repo}/commits/{active_branch}"
             )
         ]])
@@ -1306,7 +1328,7 @@ async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     auto_note = ""
     if user.get("active_repo") and user.get("active_repo") != default_repo:
-        auto_note = f"\n\U0001f4e1 Auto-detected from VS Code"
+        auto_note = "\n\U0001f4e1 Auto-detected from VS Code"
 
     await update.message.reply_text(
         f"[Stats] *GitPhone Status*\n\n"

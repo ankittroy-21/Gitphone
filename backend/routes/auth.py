@@ -13,18 +13,16 @@ Requires env vars:
 """
 
 import os
-import asyncio
+from datetime import datetime, timedelta
+
 import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from datetime import datetime, timedelta
-
 from supabase_service import (
-    get_user_by_telegram_id,
-    update_github_token,
-    save_device_flow_state,
-    get_device_flow_state,
     delete_device_flow_state,
+    get_device_flow_state,
+    save_device_flow_state,
+    update_github_token,
 )
 
 router = APIRouter()

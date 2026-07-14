@@ -23,7 +23,6 @@ EVENTS LOGGED:
 import os
 import traceback
 from datetime import datetime, timezone
-from typing import Optional
 
 # Global bot reference - set during startup in main.py
 _bot = None
@@ -35,7 +34,7 @@ def init_logger(bot) -> None:
     _bot = bot
 
 
-def _get_channel_id() -> Optional[str]:
+def _get_channel_id() -> str | None:
     return os.environ.get("LOG_CHANNEL_ID", "").strip() or None
 
 
@@ -175,7 +174,7 @@ async def log_broadcast(
 async def log_error(
     context: str,
     error: Exception,
-    telegram_id: Optional[str] = None,
+    telegram_id: str | None = None,
 ) -> None:
     tb = traceback.format_exc()
     tb_short = tb[-500:] if len(tb) > 500 else tb  # last 500 chars

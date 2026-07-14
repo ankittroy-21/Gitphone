@@ -1,11 +1,13 @@
-from fastapi import APIRouter, HTTPException, Depends
-from models.staged import SyncFilePayload, SyncFileResponse
-from supabase_service import (
-    get_user_by_telegram_id, upsert_staged_file,
-    update_last_active, update_active_repo,
-)
 import channel_logger
 from auth import require_api_key
+from fastapi import APIRouter, Depends, HTTPException
+from models.staged import SyncFilePayload, SyncFileResponse
+from supabase_service import (
+    get_user_by_telegram_id,
+    update_active_repo,
+    update_last_active,
+    upsert_staged_file,
+)
 
 MAX_FILE_SIZE = 10 * 1024 * 1024
 

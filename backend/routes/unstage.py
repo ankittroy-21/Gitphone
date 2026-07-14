@@ -32,7 +32,7 @@ async def unstage_file(file_id: str, telegram_id: str = Depends(require_api_key)
             .eq("id", file_id) \
             .eq("telegram_id", telegram_id) \
             .execute()
-        
+
         return {"ok": True, "deleted_id": file_id}
     except HTTPException:
         raise

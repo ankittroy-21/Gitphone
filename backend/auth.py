@@ -21,9 +21,8 @@ Public endpoints (no auth needed):
 
 import hashlib
 import secrets
-import os
+
 from fastapi import Header, HTTPException
-from typing import Optional
 from supabase_service import get_client
 
 

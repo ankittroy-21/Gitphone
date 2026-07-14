@@ -16,15 +16,19 @@ import os
 from datetime import datetime, timezone
 from functools import wraps
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, CommandHandler, ConversationHandler, MessageHandler, filters
-from telegram.constants import ParseMode
-
+import channel_logger
 from supabase_service import (
     get_client,
-    get_user_by_telegram_id,
 )
-import channel_logger
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.constants import ParseMode
+from telegram.ext import (
+    CommandHandler,
+    ContextTypes,
+    ConversationHandler,
+    MessageHandler,
+    filters,
+)
 
 # --- Admin Guard ----------------------------------------------------------------------------------------------
 
@@ -174,9 +178,12 @@ def _time_ago(iso_str: str) -> str:
         dt = datetime.fromisoformat(iso_str.replace("Z", "+00:00"))
         diff = datetime.now(timezone.utc) - dt
         s = int(diff.total_seconds())
-        if s < 60:      return "just now"
-        if s < 3600:    return f"{s // 60}m ago"
-        if s < 86400:   return f"{s // 3600}h ago"
+        if s < 60:
+            return "just now"
+        if s < 3600:
+            return f"{s // 60}m ago"
+        if s < 86400:
+            return f"{s // 3600}h ago"
         return f"{s // 86400}d ago"
     except Exception:
         return "unknown"

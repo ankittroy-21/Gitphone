@@ -16,5 +16,5 @@ async def get_version():
         "schema_version": CURRENT_SCHEMA_VERSION,
         "migration_sql": None,  # Populated when schema bumps
         "docs_url": "https://github.com/ankittroy-21/gitphone/blob/main/public/docs/setup-guide.md",
-        "changelog_url": "https://github.com/ankittroy-21/gitphone/blob/main/public/CHANGELOG.md",
+        "changelog_url": "https://github.com/ankittroy-21/gitphone/blob/main/CHANGELOG.md",
     }
