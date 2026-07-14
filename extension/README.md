@@ -54,6 +54,52 @@ Save file in VS Code  →  Diff synced to cloud  →  Telegram /files  →  🚀
 
 ---
 
+
+
+## 💻 Local Development
+
+### Install dependencies
+
+From the repository root, install the extension dependencies:
+
+```bash
+cd extension
+npm install
+```
+
+### Launch the extension
+
+1. Open the `extension/` folder in Visual Studio Code.
+2. Press `F5` to launch the Extension Development Host.
+
+### Configuration
+
+After launching the extension, complete the setup panel using the following values:
+
+#### Backend URL
+
+- Default production backend: `https://gitphone.onrender.com`
+- Local backend: `http://localhost:8000`
+
+- If you are running the backend locally:
+  ```
+  http://localhost:8000
+  ```
+
+#### Telegram ID
+
+Send `/start` to the GitPhone Telegram bot to obtain your Telegram ID, then enter it during the extension setup.
+
+### Type checking
+
+To verify that the extension compiles without type errors, run:
+
+```bash
+npx tsc --noEmit
+```
+
+---
+
 ## Telegram Bot Commands
 
 | Command | Description |
