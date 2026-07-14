@@ -18,7 +18,12 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const labels = context.payload.pull_request.labels.map(l => l.name);
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+            });
+            const labels = pr.labels.map(l => l.name);
             if (!labels.includes('ECSoC26')) {
               core.setFailed(
                 '❌ This PR is missing the ECSoC26 label.\n' +
