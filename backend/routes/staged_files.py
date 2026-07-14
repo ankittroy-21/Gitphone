@@ -30,42 +30,42 @@ class SyncStatePayload(BaseModel):
 
 
 @router.post("/staged-files/sync-state")
-async def sync_state_route(payload: SyncStatePayload, telegram_id: str = Depends(require_api_key)):
+async def sync_state_route(payload: SyncStatePayload, _auth: str = Depends(require_api_key)):
     """
     Called by extension whenever git state changes.
     Ensures bot doesn't show files that were committed/reverted manually.
     """
-    if payload.telegram_id != telegram_id:
+    if payload.telegram_id != _auth:
         raise HTTPException(status_code=403, detail="You can only sync your own staged files.")
 
-    user = get_user_by_telegram_id(telegram_id)
+    user = get_user_by_telegram_id(_auth)
     if not user:
         raise HTTPException(status_code=401, detail="User not registered.")
 
-    count = sync_pending_state(telegram_id, payload.current_filepaths)
+    count = sync_pending_state(_auth, payload.current_filepaths)
     return {"ok": True, "reconciled_count": count}
 
 
 # --- GET /staged-files/{telegram_id} ------------------------------------------
 
 @router.get("/staged-files/{telegram_id}")
-async def list_staged_files(telegram_id: str, auth_id: str = Depends(require_api_key)):
+async def list_staged_files(telegram_id: str, _auth: str = Depends(require_api_key)):
     """Return all pending staged files for the extension sidebar."""
-    if telegram_id != auth_id:
+    if telegram_id != _auth:
         raise HTTPException(status_code=403, detail="You can only view your own staged files.")
 
-    user = get_user_by_telegram_id(telegram_id)
+    user = get_user_by_telegram_id(_auth)
     if not user:
         raise HTTPException(status_code=401, detail="User not registered.")
 
     if user.get("status") == "banned":
         raise HTTPException(status_code=403, detail="Account suspended.")
 
-    files = get_pending_files(telegram_id)
+    files = get_pending_files(_auth)
 
     return {
         "ok": True,
-        "telegram_id": telegram_id,
+        "telegram_id": _auth,
         "repo": user.get("active_repo") or user.get("default_repo"),
         "branch": user.get("active_branch") or user.get("branch"),
         "count": len(files),
@@ -112,16 +112,16 @@ class DirectCommitPayload(BaseModel):
 
 
 @router.post("/commit-direct")
-async def commit_direct(payload: DirectCommitPayload, telegram_id: str = Depends(require_api_key)):
+async def commit_direct(payload: DirectCommitPayload, _auth: str = Depends(require_api_key)):
     """
     Commit staged files directly from VS Code without Telegram.
     Called by the extension's 'Commit All' / 'Commit This File' commands.
     """
     # Prevent IDOR: ensure the authenticated user matches the payload telegram_id
-    if payload.telegram_id != telegram_id:
+    if payload.telegram_id != _auth:
         raise HTTPException(status_code=403, detail="You can only commit your own staged files.")
 
-    user = get_user_by_telegram_id(telegram_id)
+    user = get_user_by_telegram_id(_auth)
     if not user:
         raise HTTPException(status_code=401, detail="User not registered.")
 
