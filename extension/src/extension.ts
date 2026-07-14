@@ -151,14 +151,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     await onStartupConfigured(context);
   } else {
     setDisconnected();
-    const choice = await vscode.window.showInformationMessage(
+    vscode.window.showInformationMessage(
       'GitPhone is not configured yet. Set it up to start committing from Telegram!',
       'Open Setup',
       'Later',
-    );
-    if (choice === 'Open Setup') {
-      SetupPanel.createOrShow(context.extensionUri);
-    }
+    ).then(choice => {
+      if (choice === 'Open Setup') {
+        SetupPanel.createOrShow(context.extensionUri);
+      }
+    });
   }
 
   context.subscriptions.push({ dispose: disposeStatusBar });

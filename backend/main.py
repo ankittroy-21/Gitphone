@@ -7,6 +7,9 @@ Deployed on Render (free tier, webhook mode = no sleeping).
 import json
 import os
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -88,31 +91,65 @@ register_admin_handlers(telegram_app)
 
 
 # --- FastAPI Lifespan ---------------------------------------------------------------------------------------
+import asyncio
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Set webhook on startup, clean up on shutdown."""
+    """Set webhook or start polling on startup, clean up on shutdown."""
     webhook_url = os.environ.get("WEBHOOK_URL", "").rstrip("/")
-    await telegram_app.initialize()
-    webhook_kwargs = {
-        "url": f"{webhook_url}/webhook",
-        "allowed_updates": ["message", "callback_query"],
-    }
-    secret_token = os.environ.get("TELEGRAM_SECRET_TOKEN")
-    if secret_token:
-        webhook_kwargs["secret_token"] = secret_token
-    await telegram_app.bot.set_webhook(**webhook_kwargs)
-    print(f"[main] Webhook set to {webhook_url}/webhook (secret_token={'set' if secret_token else 'not set'})")
-    await telegram_app.start()
+    is_development = os.environ.get("ENVIRONMENT") == "development" or not webhook_url
 
-    # Init channel logger and announce startup
-    init_logger(telegram_app.bot)
-    await log_startup(webhook_url)
+    polling_task = None
+
+    if not is_development:
+        await telegram_app.initialize()
+        webhook_kwargs = {
+            "url": f"{webhook_url}/webhook",
+            "allowed_updates": ["message", "callback_query"],
+        }
+        secret_token = os.environ.get("TELEGRAM_SECRET_TOKEN")
+        if secret_token:
+            webhook_kwargs["secret_token"] = secret_token
+        await telegram_app.bot.set_webhook(**webhook_kwargs)
+        print(f"[main] Webhook set to {webhook_url}/webhook (secret_token={'set' if secret_token else 'not set'})")
+        await telegram_app.start()
+
+        # Init channel logger and announce startup
+        init_logger(telegram_app.bot)
+        await log_startup(webhook_url)
+    else:
+        await telegram_app.bot.delete_webhook()
+        print("[main] Development mode detected or no WEBHOOK_URL provided. Falling back to polling.")
+        
+        # Run polling loop as a background task
+        polling_task = asyncio.create_task(
+            telegram_app.run_polling(
+                allowed_updates=["message", "callback_query"],
+                drop_pending_updates=True,
+                stop_signals=None,
+                close_loop=False
+            )
+        )
+
+        init_logger(telegram_app.bot)
+        try:
+            await log_startup("polling")
+        except Exception:
+            pass
 
     yield
 
     await log_shutdown()
-    await telegram_app.stop()
-    await telegram_app.shutdown()
+    if is_development:
+        if polling_task:
+            polling_task.cancel()
+            try:
+                await polling_task
+            except asyncio.CancelledError:
+                pass
+    else:
+        await telegram_app.stop()
+        await telegram_app.shutdown()
 
 
 app = FastAPI(

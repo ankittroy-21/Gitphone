@@ -14,8 +14,8 @@ _supabase: Client | None = None
 def get_client() -> Client:
     global _supabase
     if _supabase is None:
-        url = os.environ["YOUR_SUPABASE_URL"]
-        key = os.environ["YOUR_SUPABASE_KEY"]
+        url = os.environ["SUPABASE_URL"]
+        key = os.environ["SUPABASE_KEY"]
         _supabase = create_client(url, key)
     return _supabase
 

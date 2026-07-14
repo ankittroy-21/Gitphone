@@ -413,7 +413,15 @@ async def set_repo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         )
         return
 
-    upsert_user({"telegram_id": telegram_id, "default_repo": new_repo, "active_repo": new_repo})
+    from supabase_service import get_client
+    try:
+        get_client().table("users").update({
+            "default_repo": new_repo, 
+            "active_repo": new_repo
+        }).eq("telegram_id", telegram_id).execute()
+    except Exception as e:
+        print(f"[bot] Error updating repo: {e}")
+        
     default_branch = result.get("default_branch", "main")
     await update.message.reply_text(
         f"[OK] Default repo set to `{new_repo}`\n"
