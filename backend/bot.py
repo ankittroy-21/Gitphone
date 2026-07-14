@@ -1352,23 +1352,27 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     user_commands = (
         "\U0001f6e0 *GitPhone Commands*\n\n"
-        "[Files] *Staging & Commits*\n"
-        "/files   - Select staged files & commit\n"
-        "/preview - Preview diffs before committing\n"
-        "/unstage - Remove a file from staged list\n"
-        "/clear   - Clear all staged files\n\n"
-        "[Repo] *Repo & Branch*\n"
-        "/repo    - Show active repo (auto-detected)\n"
-        "/branch  - Switch branch\n"
-        "/log     - Recent commit history\n"
-        "/status  - Connection & repo status\n\n"
-        "\u2699\ufe0f *Account*\n"
-        "/auth    - Update GitHub token\n"
-        "/start   - Setup or reconfigure\n"
-        "/cancel  - Cancel current operation\n"
-        "/help    - This message\n\n"
-        "\U0001f4a1 *Tip:* Save any file in VS Code - it auto-stages and "
-        "the repo is auto-detected from your git remote."
+        "\U0001f4c2 *Getting Started*\n"
+        "`/start`   - Register or welcome back\n"
+        "`/auth`    - Link your GitHub account (Device Flow)\n"
+        "`/help`    - Show this help message\n"
+        "`/cancel`  - Cancel the current operation\n\n"
+
+        "\U0001f4c1 *Staging & Commits*\n"
+        "`/files`   - View and select staged files to commit\n"
+        "`/preview` - Preview diffs before committing\n"
+        "`/unstage` - Remove a specific file from the staged list\n"
+        "`/clear`   - Wipe your entire remote staging area\n"
+        "`/log`     - View your recent GitPhone commit history\n\n"
+
+        "\U0001f4e6 *Repository*\n"
+        "`/repo`    - Show your active repository\n"
+        "`/branch`  - Switch or create branches\n"
+        "`/status`  - Check connection & system health\n\n"
+
+        "\U0001f4a1 *Tip:* Save any file in VS Code and it will "
+        "automatically stage it. GitPhone also auto-detects your "
+        "repository from the current git remote."
     )
 
     admin_commands = (
