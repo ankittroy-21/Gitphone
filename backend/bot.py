@@ -66,6 +66,33 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
+from telegram.constants import ParseMode
+
+from supabase_service import (
+    get_user_by_telegram_id,
+    upsert_user,
+    update_last_active,
+    get_pending_files,
+    get_pending_files_by_repo,
+    get_staged_files_by_ids,
+    mark_files_committed,
+    insert_commit_log,
+    get_recent_commits,
+    unstage_file_by_path,
+    clear_all_staged,
+    update_branch,
+    save_device_flow_state,
+    get_device_flow_state,
+    delete_device_flow_state,
+    update_github_token,
+    update_github_username,
+    ban_user,
+    unban_user,
+    revoke_api_key,
+    get_all_users,
+    count_stats,
+)
+from github_service import github_service
 
 # GitHub Device Flow endpoints
 GITHUB_CLIENT_ID     = os.environ.get("GITHUB_CLIENT_ID", "")
@@ -325,10 +352,13 @@ async def _poll_device_auth(
                 user = get_user_by_telegram_id(telegram_id)
                 if user:
                     update_github_token(telegram_id, token)
+                    if username:
+                        update_github_username(telegram_id, username)
                 else:
                     upsert_user({
                         "telegram_id": telegram_id,
                         "github_token": token,
+                        "github_username": (username or "").lower() or None,
                         "default_repo": "not-set", # Required column
                         "branch": "main"
                     })

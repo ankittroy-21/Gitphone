@@ -441,3 +441,31 @@ def update_github_token(telegram_id: str, token: str) -> bool:
         print(f"[supabase] update_github_token error: {e}")
         return False
 
+
+def update_github_username(telegram_id: str, github_username: str) -> None:
+    """Persist the user's GitHub login so webhooks can map assignee -> telegram_id."""
+    if not github_username:
+        return
+    try:
+        get_client().table("users") \
+            .update({"github_username": github_username.lower()}) \
+            .eq("telegram_id", telegram_id) \
+            .execute()
+    except Exception as e:
+        print(f"[supabase] update_github_username error: {e}")
+
+
+def get_user_by_github_username(github_username: str) -> Optional[dict]:
+    """Reverse lookup: GitHub login -> user row. Case-insensitive. None if unmapped."""
+    if not github_username:
+        return None
+    try:
+        result = get_client().table("users") \
+            .select("*") \
+            .ilike("github_username", github_username) \
+            .execute()
+        return result.data[0] if result.data else None
+    except Exception as e:
+        print(f"[supabase] get_user_by_github_username error: {e}")
+        return None
+

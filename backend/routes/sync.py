@@ -16,6 +16,10 @@ router = APIRouter()
 @router.post("/sync-file", response_model=SyncFileResponse)
 async def sync_file(payload: SyncFilePayload, _auth: str = Depends(require_api_key)):
     try:
+        if payload.telegram_id != _auth:
+            raise HTTPException(status_code=403, detail="Forbidden: telegram_id does not match authenticated user")
+        # Step 1: Resolve user
+        user = get_user_by_telegram_id(_auth)
         user = get_user_by_telegram_id(payload.telegram_id)
         if not user:
             raise HTTPException(

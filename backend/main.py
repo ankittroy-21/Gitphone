@@ -4,6 +4,9 @@ Combines FastAPI HTTP routes + python-telegram-bot webhook in one process.
 Deployed on Render (free tier, webhook mode = no sleeping).
 """
 
+from dotenv import load_dotenv
+load_dotenv()
+import os
 import json
 import os
 from contextlib import asynccontextmanager
@@ -47,6 +50,10 @@ from bot import (  # noqa: E402
 )
 from channel_logger import init_logger, log_shutdown, log_startup  # noqa: E402
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler  # noqa: E402
+from admin import register_admin_handlers
+from channel_logger import init_logger, log_startup, log_shutdown
+from notifications import init_notifier
+from telegram.ext import CommandHandler, CallbackQueryHandler
 
 # --- Build Telegram Application ------------------------------------------------------------------------
 telegram_app = (
@@ -106,6 +113,7 @@ async def lifespan(app: FastAPI):
 
     # Init channel logger and announce startup
     init_logger(telegram_app.bot)
+    init_notifier(telegram_app.bot)
     await log_startup(webhook_url)
 
     yield
@@ -171,6 +179,7 @@ from routes.unstage import router as unstage_router  # noqa: E402
 from routes.version import router as version_router  # noqa: E402
 
 app.include_router(register_router)
+app.include_router(github_webhook_router)
 app.include_router(sync_router)
 app.include_router(version_router)
 app.include_router(staged_files_router)
