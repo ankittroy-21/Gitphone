@@ -3,11 +3,25 @@ main.py - FastAPI app entry point.
 Combines FastAPI HTTP routes + python-telegram-bot webhook in one process.
 Deployed on Render (free tier, webhook mode = no sleeping).
 """
-
+from dotenv import load_dotenv
+load_dotenv()
 import os
+import json
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Header, HTTPException
 from telegram import Update
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+def get_telegram_user_id(request: Request) -> str:
+    telegram_id = getattr(request.state, "telegram_user_id", None)
+    if telegram_id:
+        return telegram_id
+    return get_remote_address(request)
+
+limiter = Limiter(key_func=get_telegram_user_id)
+
 from telegram.ext import Application
 
 from bot import (
@@ -33,6 +47,7 @@ from bot import (
 )
 from admin import register_admin_handlers
 from channel_logger import init_logger, log_startup, log_shutdown
+from notifications import init_notifier
 from telegram.ext import CommandHandler, CallbackQueryHandler
 
 # --- Build Telegram Application ------------------------------------------------------------------------
@@ -80,15 +95,20 @@ async def lifespan(app: FastAPI):
     """Set webhook on startup, clean up on shutdown."""
     webhook_url = os.environ.get("WEBHOOK_URL", "").rstrip("/")
     await telegram_app.initialize()
-    await telegram_app.bot.set_webhook(
-        url=f"{webhook_url}/webhook",
-        allowed_updates=["message", "callback_query"],
-    )
-    print(f"[main] Webhook set to {webhook_url}/webhook")
+    webhook_kwargs = {
+        "url": f"{webhook_url}/webhook",
+        "allowed_updates": ["message", "callback_query"],
+    }
+    secret_token = os.environ.get("TELEGRAM_SECRET_TOKEN")
+    if secret_token:
+        webhook_kwargs["secret_token"] = secret_token
+    await telegram_app.bot.set_webhook(**webhook_kwargs)
+    print(f"[main] Webhook set to {webhook_url}/webhook (secret_token={'set' if secret_token else 'not set'})")
     await telegram_app.start()
 
     # Init channel logger and announce startup
     init_logger(telegram_app.bot)
+    init_notifier(telegram_app.bot)
     await log_startup(webhook_url)
 
     yield
@@ -104,16 +124,45 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.middleware("http")
+async def extract_telegram_user_id(request: Request, call_next):
+    if request.url.path == "/webhook" and request.method == "POST":
+        try:
+            body_bytes = await request.body()
+            body_json = json.loads(body_bytes)
+            if "message" in body_json and "from" in body_json["message"]:
+                request.state.telegram_user_id = str(body_json["message"]["from"]["id"])
+            elif "callback_query" in body_json and "from" in body_json["callback_query"]:
+                request.state.telegram_user_id = str(body_json["callback_query"]["from"]["id"])
+            
+            async def receive():
+                return {"type": "http.request", "body": body_bytes}
+            request._receive = receive
+        except Exception:
+            pass
+    return await call_next(request)
 
 
 # --- Telegram Webhook Route ------------------------------------------------------------------------------
 @app.post("/webhook")
-async def telegram_webhook(request: Request):
+@limiter.limit("30/minute")
+async def telegram_webhook(
+    request: Request,
+    x_telegram_bot_api_secret_token: str = Header(None)
+):
+    expected_token = os.getenv("TELEGRAM_SECRET_TOKEN")
+    
+    if expected_token and x_telegram_bot_api_secret_token != expected_token:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+        
     data = await request.json()
     update = Update.de_json(data, telegram_app.bot)
     await telegram_app.process_update(update)
     return {"ok": True}
-
 
 # --- API Routes ------------------------------------------------------------------------------------------------
 from routes.register import router as register_router
@@ -122,8 +171,10 @@ from routes.version import router as version_router
 from routes.staged_files import router as staged_files_router
 from routes.unstage import router as unstage_router
 from routes.auth import router as auth_router
+from routes.github_webhook import router as github_webhook_router
 
 app.include_router(register_router)
+app.include_router(github_webhook_router)
 app.include_router(sync_router)
 app.include_router(version_router)
 app.include_router(staged_files_router)

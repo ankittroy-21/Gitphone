@@ -3,25 +3,36 @@ routes/unstage.py - DELETE /staged-files/<file_id>
 Called by the VS Code extension when user clicks Unstage on a file.
 """
 
-from fastapi import APIRouter, HTTPException, Depends
-from supabase_service import get_client, get_user_by_telegram_id
 from auth import require_api_key
+from fastapi import APIRouter, Depends, HTTPException
+from supabase_service import get_client
 
 router = APIRouter()
 
 
 @router.delete("/staged-files/{file_id}")
-async def unstage_file(file_id: str, _auth: str = Depends(require_api_key)):
+async def unstage_file(file_id: str, telegram_id: str = Depends(require_api_key)):
     """Remove a staged file by its UUID (marks as cancelled)."""
     try:
         db = get_client()
         # Verify file exists
-        result = db.table("staged_files").select("id, telegram_id").eq("id", file_id).execute()
+        result = (
+            db.table("staged_files")
+            .select("id, telegram_id")
+            .eq("id", file_id)
+            .eq("telegram_id", telegram_id)
+            .execute()
+        )
         if not result.data:
             raise HTTPException(status_code=404, detail="Staged file not found.")
 
         # Delete it
-        db.table("staged_files").delete().eq("id", file_id).execute()
+        db.table("staged_files") \
+            .delete() \
+            .eq("id", file_id) \
+            .eq("telegram_id", telegram_id) \
+            .execute()
+        
         return {"ok": True, "deleted_id": file_id}
     except HTTPException:
         raise

@@ -207,6 +207,14 @@ export class GitPhoneSidebarProvider
     return Array.from(map.values());
   }
 
+  get stagedChanges(): GitChange[] {
+    return this._repo?.state.indexChanges ?? [];
+  }
+
+  get workingTreeChanges(): GitChange[] {
+    return this._repo?.state.workingTreeChanges ?? [];
+  }
+
   getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
     return element;
   }

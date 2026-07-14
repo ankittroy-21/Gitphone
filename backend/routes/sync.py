@@ -1,10 +1,3 @@
-"""
-routes/sync.py - POST /sync-file
-Called by VS Code extension on every file save.
-Stores the diff in Supabase staged_files.
-Auto-updates active_repo/active_branch from the extension's git detection.
-"""
-
 from fastapi import APIRouter, HTTPException, Depends
 from models.staged import SyncFilePayload, SyncFileResponse
 from supabase_service import (
@@ -14,10 +7,9 @@ from supabase_service import (
 import channel_logger
 from auth import require_api_key
 
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_FILE_SIZE = 10 * 1024 * 1024
 
 router = APIRouter()
-
 
 @router.post("/sync-file", response_model=SyncFileResponse)
 async def sync_file(payload: SyncFilePayload, _auth: str = Depends(require_api_key)):
@@ -26,20 +18,19 @@ async def sync_file(payload: SyncFilePayload, _auth: str = Depends(require_api_k
             raise HTTPException(status_code=403, detail="Forbidden: telegram_id does not match authenticated user")
         # Step 1: Resolve user
         user = get_user_by_telegram_id(_auth)
+        user = get_user_by_telegram_id(payload.telegram_id)
         if not user:
             raise HTTPException(
                 status_code=401,
                 detail="User not registered. Complete setup in VS Code first."
             )
 
-        # Step 2: File size guard (defense in depth - extension checks first)
-        if payload.file_size > MAX_FILE_SIZE:
-            raise HTTPException(
-                status_code=413,
-                detail=f"File exceeds 10MB limit ({payload.file_size} bytes)"
-            )
+        content_length = len(payload.full_content.encode('utf-8')) if payload.full_content else 0
+        diff_length = len(payload.diff.encode('utf-8')) if payload.diff else 0
 
-        # Step 3: Validate content - deletions are allowed with no diff/content
+        if content_length > MAX_FILE_SIZE or diff_length > MAX_FILE_SIZE:
+            raise HTTPException(status_code=413, detail="Actual payload size exceeds 10MB limit")
+
         is_deletion = payload.change_type == "delete" or payload.base_sha == "delete"
         if not is_deletion and not payload.diff and not payload.full_content:
             raise HTTPException(
@@ -47,14 +38,12 @@ async def sync_file(payload: SyncFilePayload, _auth: str = Depends(require_api_k
                 detail="Either diff or full_content must be provided"
             )
 
-        # Step 4: Auto-update active repo if extension sent it
         effective_repo = payload.active_repo or user.get("active_repo") or user.get("default_repo", "")
         effective_branch = payload.active_branch or user.get("active_branch") or user.get("branch", "main")
 
         if payload.active_repo:
             update_active_repo(payload.telegram_id, payload.active_repo, effective_branch)
 
-        # Step 5: Upsert staged file (include repo + change_type for grouping and display)
         staged_payload = {
             "user_id": user["id"],
             "telegram_id": payload.telegram_id,
@@ -72,10 +61,8 @@ async def sync_file(payload: SyncFilePayload, _auth: str = Depends(require_api_k
         if not saved:
             raise HTTPException(status_code=500, detail="Failed to stage file")
 
-        # Step 6: Touch last_active
         update_last_active(payload.telegram_id)
 
-        # Step 7: Log to channel (non-blocking)
         await channel_logger.log_file_staged(
             telegram_id=payload.telegram_id,
             filepath=payload.filepath,
@@ -95,4 +82,3 @@ async def sync_file(payload: SyncFilePayload, _auth: str = Depends(require_api_k
     except Exception as e:
         print(f"[sync_file] Unexpected error: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
-
