@@ -1,5 +1,4 @@
 from pydantic import BaseModel, Field
-from typing import Optional
 
 
 class RegisterPayload(BaseModel):
@@ -22,6 +21,6 @@ class RegisterPayload(BaseModel):
 class UserResponse(BaseModel):
     ok: bool
     message: str
-    telegram_id: Optional[str] = None
-    api_key: Optional[str] = None      # Returned ONCE at registration - store it securely
-    error: Optional[str] = None
+    telegram_id: str | None = None
+    api_key: str | None = None      # Returned ONCE at registration - store it securely
+    error: str | None = None

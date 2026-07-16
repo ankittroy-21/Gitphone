@@ -5,11 +5,11 @@ Validates GitHub token + repo access, then saves user to Supabase.
 Generates a per-user API key returned ONCE - extension stores it for all future requests.
 """
 
-from fastapi import APIRouter, HTTPException
-from models.user import RegisterPayload, UserResponse
-from github_service import github_service
-from supabase_service import upsert_user
 from auth import generate_api_key
+from fastapi import APIRouter, HTTPException
+from github_service import github_service
+from models.user import RegisterPayload, UserResponse
+from supabase_service import upsert_user
 
 router = APIRouter()
 

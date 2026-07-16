@@ -4,10 +4,9 @@ Handles token validation, SHA fetching, file commits, branch management, and PR 
 """
 
 import base64
-from typing import Optional
-from github import Github, GithubException
 
-from diff_service import apply_diff, detect_conflict
+from diff_service import apply_diff
+from github import Github, GithubException
 
 
 class GitHubService:
@@ -35,7 +34,7 @@ class GitHubService:
         except Exception as e:
             return {"ok": False, "error": "unknown", "message": str(e)}
 
-    def get_username(self, token: str) -> Optional[str]:
+    def get_username(self, token: str) -> str | None:
         """Return the GitHub username for a given token."""
         try:
             return Github(token).get_user().login
@@ -87,7 +86,7 @@ class GitHubService:
             repo = Github(token).get_repo(repo_name)
             pr = repo.create_pull(
                 title=title,
-                body=body or f"Changes committed via GitPhone\n\n---\n*Created automatically by GitPhone bot*",
+                body=body or "Changes committed via GitPhone\n\n---\n*Created automatically by GitPhone bot*",
                 head=head,
                 base=base,
             )
@@ -142,7 +141,7 @@ class GitHubService:
         try:
             g = Github(token)
             repo = g.get_repo(repo_name)
-            last_sha: Optional[str] = None
+            last_sha: str | None = None
             conflict_files: list[str] = []
             committed_ids: list[str] = []
 
@@ -166,7 +165,8 @@ class GitHubService:
                     if change_type == "delete" or stored_base_sha == "delete":
                         if not exists_on_gh:
                             print(f"[github_service] Skip delete {filepath} - not on GitHub")
-                            if file_id: committed_ids.append(file_id)
+                            if file_id:
+                                committed_ids.append(file_id)
                             continue
                         result = repo.delete_file(
                             path=filepath,
@@ -175,7 +175,8 @@ class GitHubService:
                             branch=branch,
                         )
                         last_sha = result["commit"].sha
-                        if file_id: committed_ids.append(file_id)
+                        if file_id:
+                            committed_ids.append(file_id)
                         continue
 
                     # --- Reconstruct final content -------------------------------------------
@@ -187,14 +188,14 @@ class GitHubService:
                         # For MVP: We are lenient. If diff applies to CURRENT content, we commit.
                         base_content = current_content if exists_on_gh else ""
                         new_content, success = apply_diff(base_content, diff_text)
-                        
+
                         # Only report conflict if diff COMPELTELY fails AND it's not a force commit
                         if not success and stored_base_sha != "force":
                             # If we have a mismatch AND diff failed -> genuine conflict
                             if stored_base_sha != current_sha and stored_base_sha != "new_file":
                                 conflict_files.append(filepath)
                                 continue
-                        
+
                         new_content = new_content.replace("\r\n", "\n")
                         content_to_commit = new_content.encode("utf-8")
 
@@ -215,7 +216,8 @@ class GitHubService:
                             branch=branch,
                         )
                     last_sha = result["commit"].sha
-                    if file_id: committed_ids.append(file_id)
+                    if file_id:
+                        committed_ids.append(file_id)
 
                 except Exception as e:
                     print(f"[github_service] Error committing {filepath}: {e}")
@@ -236,19 +238,6 @@ class GitHubService:
                 "conflict_files": conflict_files,
                 "committed_ids": committed_ids,
             }
-
-        except GithubException as e:
-            if e.status == 409:
-                return {"ok": False, "error": "conflict", "message": "SHA conflict on GitHub"}
-            if e.status == 422:
-                msg = str(e.data.get("message", ""))
-                if "protected" in msg.lower() or "required" in msg.lower():
-                    return {"ok": False, "error": "branch_protected", "message": f"Branch is protected: {msg}"}
-                return {"ok": False, "error": "validation_failed", "message": f"GitHub validation failed: {msg}"}
-            return {"ok": False, "error": "github_error", "message": str(e.data)}
-        except Exception as e:
-            print(f"[github_service] commit_files error: {e}")
-            return {"ok": False, "error": "unknown", "message": str(e)}
 
         except GithubException as e:
             if e.status == 409:

@@ -3,16 +3,20 @@ main.py - FastAPI app entry point.
 Combines FastAPI HTTP routes + python-telegram-bot webhook in one process.
 Deployed on Render (free tier, webhook mode = no sleeping).
 """
+
 from dotenv import load_dotenv
 load_dotenv()
 import os
 import json
+import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, Header, HTTPException
-from telegram import Update
+
+from fastapi import FastAPI, Header, HTTPException, Request
 from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+from telegram import Update
+
 
 def get_telegram_user_id(request: Request) -> str:
     telegram_id = getattr(request.state, "telegram_user_id", None)
@@ -22,29 +26,30 @@ def get_telegram_user_id(request: Request) -> str:
 
 limiter = Limiter(key_func=get_telegram_user_id)
 
-from telegram.ext import Application
-
-from bot import (
-    build_start_conversation,
-    build_files_conversation,
-    build_auth_conversation,
-    build_branch_conversation,
-    log_handler,
-    status_handler,
-    help_handler,
-    cancel_handler,
-    set_repo_handler,
-    preview_handler,
-    unstage_handler,
-    clear_handler,
-    clear_confirm_callback,
+from admin import register_admin_handlers  # noqa: E402
+from bot import (  # noqa: E402
     admin_ban_handler,
+    admin_broadcast_handler,
+    admin_revoke_handler,
+    admin_stats_handler,
     admin_unban_handler,
     admin_users_handler,
-    admin_broadcast_handler,
-    admin_stats_handler,
-    admin_revoke_handler,
+    build_auth_conversation,
+    build_branch_conversation,
+    build_files_conversation,
+    build_start_conversation,
+    cancel_handler,
+    clear_confirm_callback,
+    clear_handler,
+    help_handler,
+    log_handler,
+    preview_handler,
+    set_repo_handler,
+    status_handler,
+    unstage_handler,
 )
+from channel_logger import init_logger, log_shutdown, log_startup  # noqa: E402
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler  # noqa: E402
 from admin import register_admin_handlers
 from channel_logger import init_logger, log_startup, log_shutdown
 from notifications import init_notifier
@@ -138,7 +143,7 @@ async def extract_telegram_user_id(request: Request, call_next):
                 request.state.telegram_user_id = str(body_json["message"]["from"]["id"])
             elif "callback_query" in body_json and "from" in body_json["callback_query"]:
                 request.state.telegram_user_id = str(body_json["callback_query"]["from"]["id"])
-            
+
             async def receive():
                 return {"type": "http.request", "body": body_bytes}
             request._receive = receive
@@ -155,23 +160,23 @@ async def telegram_webhook(
     x_telegram_bot_api_secret_token: str = Header(None)
 ):
     expected_token = os.getenv("TELEGRAM_SECRET_TOKEN")
-    
+
     if expected_token and x_telegram_bot_api_secret_token != expected_token:
         raise HTTPException(status_code=401, detail="Unauthorized")
-        
+
     data = await request.json()
     update = Update.de_json(data, telegram_app.bot)
     await telegram_app.process_update(update)
     return {"ok": True}
 
 # --- API Routes ------------------------------------------------------------------------------------------------
-from routes.register import router as register_router
-from routes.sync import router as sync_router
-from routes.version import router as version_router
-from routes.staged_files import router as staged_files_router
-from routes.unstage import router as unstage_router
-from routes.auth import router as auth_router
-from routes.github_webhook import router as github_webhook_router
+# noqa: E402 — routes must be imported after `app` is fully built above
+from routes.auth import router as auth_router  # noqa: E402
+from routes.register import router as register_router  # noqa: E402
+from routes.staged_files import router as staged_files_router  # noqa: E402
+from routes.sync import router as sync_router  # noqa: E402
+from routes.unstage import router as unstage_router  # noqa: E402
+from routes.version import router as version_router  # noqa: E402
 
 app.include_router(register_router)
 app.include_router(github_webhook_router)
