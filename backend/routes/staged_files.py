@@ -89,19 +89,14 @@ async def list_staged_files(telegram_id: str, auth_id: str = Depends(require_api
 # --- POST /staged-files/clear-all ---------------------------------------------
 
 @router.post("/staged-files/clear-all")
-async def clear_all_route(request: Request, _auth: str = Depends(require_api_key)):
-    """Clear all pending staged files for the requesting user."""
-    telegram_id = request.headers.get("X-Telegram-Id")
-    if not telegram_id:
-        raise HTTPException(status_code=400, detail="X-Telegram-Id header required")
-
+async def clear_all_route(telegram_id: str = Depends(require_api_key)):
+    """Clear all pending staged files for the requesting (authenticated) user."""
     user = get_user_by_telegram_id(telegram_id)
     if not user:
         raise HTTPException(status_code=401, detail="User not registered.")
-
+ 
     clear_all_staged(telegram_id)
     return {"ok": True, "message": "All staged files cleared."}
-
 
 # --- POST /commit-direct ------------------------------------------------------
 
