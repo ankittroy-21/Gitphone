@@ -17,6 +17,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from telegram import Update
 
+APP_VERSION = "1.0.0"
 
 def get_telegram_user_id(request: Request) -> str:
     telegram_id = getattr(request.state, "telegram_user_id", None)
@@ -126,7 +127,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="GitPhone API",
     description="GitHub commits from Telegram - backend service",
-    version="1.0.0",
+    version=APP_VERSION,
     lifespan=lifespan,
 )
 app.state.limiter = limiter
@@ -190,7 +191,7 @@ app.include_router(auth_router)
 # --- Health Check -------------------------------------------------------------------------------------------
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "gitphone", "version": "1.0.0"}
+    return {"status": "ok", "service": "gitphone", "version": APP_VERSION}
 
 
 @app.get("/")
@@ -199,5 +200,5 @@ async def root():
         "service": "GitPhone",
         "docs": "/docs",
         "health": "/health",
-        "version": "1.0.0",
+        "version": APP_VERSION,
     }
