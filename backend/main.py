@@ -4,6 +4,9 @@ Combines FastAPI HTTP routes + python-telegram-bot webhook in one process.
 Deployed on Render (free tier, webhook mode = no sleeping).
 """
 
+from dotenv import load_dotenv
+load_dotenv()
+import os
 import json
 import os
 from contextlib import asynccontextmanager
@@ -17,6 +20,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from telegram import Update
 
+APP_VERSION = "1.0.0"
 
 def get_telegram_user_id(request: Request) -> str:
     telegram_id = getattr(request.state, "telegram_user_id", None)
@@ -50,6 +54,10 @@ from bot import (  # noqa: E402
 )
 from channel_logger import init_logger, log_shutdown, log_startup  # noqa: E402
 from telegram.ext import Application, CallbackQueryHandler, CommandHandler  # noqa: E402
+from admin import register_admin_handlers
+from channel_logger import init_logger, log_startup, log_shutdown
+from notifications import init_notifier
+from telegram.ext import CommandHandler, CallbackQueryHandler
 
 # --- Build Telegram Application ------------------------------------------------------------------------
 telegram_app = (
@@ -116,6 +124,7 @@ async def lifespan(app: FastAPI):
 
         # Init channel logger and announce startup
         init_logger(telegram_app.bot)
+        init_notifier(telegram_app.bot)
         await log_startup(webhook_url)
     else:
         await telegram_app.bot.delete_webhook()
@@ -132,6 +141,7 @@ async def lifespan(app: FastAPI):
         )
 
         init_logger(telegram_app.bot)
+        init_notifier(telegram_app.bot)
         try:
             await log_startup("polling")
         except Exception:
@@ -155,7 +165,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="GitPhone API",
     description="GitHub commits from Telegram - backend service",
-    version="1.0.0",
+    version=APP_VERSION,
     lifespan=lifespan,
 )
 app.state.limiter = limiter
@@ -208,6 +218,7 @@ from routes.unstage import router as unstage_router  # noqa: E402
 from routes.version import router as version_router  # noqa: E402
 
 app.include_router(register_router)
+app.include_router(github_webhook_router)
 app.include_router(sync_router)
 app.include_router(version_router)
 app.include_router(staged_files_router)
@@ -218,7 +229,7 @@ app.include_router(auth_router)
 # --- Health Check -------------------------------------------------------------------------------------------
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "gitphone", "version": "1.0.0"}
+    return {"status": "ok", "service": "gitphone", "version": APP_VERSION}
 
 
 @app.get("/")
@@ -227,5 +238,5 @@ async def root():
         "service": "GitPhone",
         "docs": "/docs",
         "health": "/health",
-        "version": "1.0.0",
+        "version": APP_VERSION,
     }
