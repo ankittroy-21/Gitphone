@@ -211,6 +211,7 @@ async def telegram_webhook(
 # --- API Routes ------------------------------------------------------------------------------------------------
 # noqa: E402 — routes must be imported after `app` is fully built above
 from routes.auth import router as auth_router  # noqa: E402
+from routes.github_webhook import router as github_webhook_router  # noqa: E402
 from routes.register import router as register_router  # noqa: E402
 from routes.staged_files import router as staged_files_router  # noqa: E402
 from routes.sync import router as sync_router  # noqa: E402

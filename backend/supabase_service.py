@@ -4,6 +4,7 @@ Uses ONE central Supabase (ours). Users isolated by telegram_id.
 """
 
 import os
+from typing import Optional
 
 from supabase import Client, create_client
 
