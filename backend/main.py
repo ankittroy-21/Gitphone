@@ -4,14 +4,12 @@ Combines FastAPI HTTP routes + python-telegram-bot webhook in one process.
 Deployed on Render (free tier, webhook mode = no sleeping).
 """
 
-from dotenv import load_dotenv
-load_dotenv()
-import os
+import asyncio
 import json
 import os
 from contextlib import asynccontextmanager
-from dotenv import load_dotenv
 
+from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -99,7 +97,6 @@ register_admin_handlers(telegram_app)
 
 
 # --- FastAPI Lifespan ---------------------------------------------------------------------------------------
-import asyncio
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -127,16 +124,16 @@ async def lifespan(app: FastAPI):
         init_notifier(telegram_app.bot)
         await log_startup(webhook_url)
     else:
+        await telegram_app.initialize()
         await telegram_app.bot.delete_webhook()
+        await telegram_app.start()
         print("[main] Development mode detected or no WEBHOOK_URL provided. Falling back to polling.")
         
         # Run polling loop as a background task
         polling_task = asyncio.create_task(
-            telegram_app.run_polling(
+            telegram_app.updater.start_polling(
                 allowed_updates=["message", "callback_query"],
-                drop_pending_updates=True,
-                stop_signals=None,
-                close_loop=False
+                drop_pending_updates=True
             )
         )
 
@@ -157,6 +154,9 @@ async def lifespan(app: FastAPI):
                 await polling_task
             except asyncio.CancelledError:
                 pass
+        await telegram_app.updater.stop()
+        await telegram_app.stop()
+        await telegram_app.shutdown()
     else:
         await telegram_app.stop()
         await telegram_app.shutdown()

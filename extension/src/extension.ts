@@ -159,7 +159,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (choice === 'Open Setup') {
         SetupPanel.createOrShow(context.extensionUri);
       }
-    });
+    }).catch(() => {});
   }
 
   context.subscriptions.push({ dispose: disposeStatusBar });
