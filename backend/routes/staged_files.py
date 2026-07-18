@@ -6,6 +6,7 @@ POST /staged-files/clear-all       - clear all staged files for a user
 POST /commit-direct                - commit directly from VS Code (no Telegram)
 """
 
+import channel_logger
 from auth import require_api_key
 from fastapi import APIRouter, Depends, HTTPException, Request
 from github_service import github_service
@@ -192,6 +193,17 @@ async def commit_direct(payload: DirectCommitPayload, telegram_id: str = Depends
         "branch": branch,
         "was_scheduled": False,
     })
+
+    # Notify admin monitoring channel — mirrors the Telegram commit path in bot.py
+    await channel_logger.log_commit(
+        telegram_id=telegram_id,
+        repo=repo,
+        branch=branch,
+        commit_sha=commit_sha or "unknown",
+        message=payload.commit_message,
+        files=committed_paths,
+        was_forced=False,
+    )
 
     commit_url = f"https://github.com/{repo}/commit/{commit_sha}" if commit_sha else ""
 
