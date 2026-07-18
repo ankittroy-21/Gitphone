@@ -4,6 +4,7 @@
  */
 
 import * as vscode from 'vscode';
+import { getBackendUrl } from './config';
 
 const STATUS_BAR_PRIORITY = 100;
 let _statusBar: vscode.StatusBarItem;
@@ -21,14 +22,14 @@ export function initStatusBar(): vscode.StatusBarItem {
 
 export function setDisconnected(): void {
   _statusBar.text = '$(warning) GitPhone - Disconnected';
-  _statusBar.tooltip = 'GitPhone: Not connected - click to set up';
+  _statusBar.tooltip = `GitPhone: Not connected | Backend: ${getBackendUrl()} — Click to set up`;
   _statusBar.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
 }
 
 export function setConnected(stagedCount: number = 0): void {
   _stagedCount = stagedCount;
   _statusBar.text = `$(check) GitPhone - ${stagedCount} staged`;
-  _statusBar.tooltip = `GitPhone: ${stagedCount} file(s) staged. Click to open panel.`;
+  _statusBar.tooltip = `GitPhone: ${stagedCount} file(s) staged | Backend: ${getBackendUrl()} — Click to open panel.`;
   _statusBar.backgroundColor = undefined;
 }
 
