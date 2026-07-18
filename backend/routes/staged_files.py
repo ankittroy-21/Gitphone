@@ -15,6 +15,7 @@ from supabase_service import (
     get_pending_files,
     get_staged_files_by_ids,
     get_user_by_telegram_id,
+    insert_commit_log,
     mark_files_committed,
     sync_pending_state,
 )
@@ -174,10 +175,24 @@ async def commit_direct(payload: DirectCommitPayload, telegram_id: str = Depends
             detail=result.get("message", "GitHub commit failed."),
         )
 
-    committed_ids = [f["id"] for f in staged_files]
+    committed_ids = result.get("committed_ids", [f["id"] for f in staged_files])
     mark_files_committed(committed_ids)
 
     commit_sha = result.get("commit_sha", "")
+
+    # Record in commit_log so the Telegram /log command shows VS Code commits too
+    committed_paths = [f["filepath"] for f in staged_files if f["id"] in committed_ids]
+    insert_commit_log({
+        "telegram_id": telegram_id,
+        "user_id": user["id"],
+        "commit_sha": commit_sha or "unknown",
+        "message": payload.commit_message,
+        "files": committed_paths,
+        "repo": repo,
+        "branch": branch,
+        "was_scheduled": False,
+    })
+
     commit_url = f"https://github.com/{repo}/commit/{commit_sha}" if commit_sha else ""
 
     return {
