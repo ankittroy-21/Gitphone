@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, validator
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB in bytes
 

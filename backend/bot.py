@@ -443,7 +443,17 @@ async def set_repo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         )
         return
 
-    upsert_user({"telegram_id": telegram_id, "default_repo": new_repo, "active_repo": new_repo})
+    try:
+        upsert_user({
+            "telegram_id": telegram_id,
+            "default_repo": new_repo,
+            "active_repo": new_repo
+        })
+    except Exception as e:
+        print(f"[bot] Error updating repo: {e}")
+        await update.message.reply_text("[X] Failed to update repo. Please try again.")
+        return
+        
     default_branch = result.get("default_branch", "main")
     await update.message.reply_text(
         f"[OK] Default repo set to `{new_repo}`\n"

@@ -4,12 +4,13 @@ Combines FastAPI HTTP routes + python-telegram-bot webhook in one process.
 Deployed on Render (free tier, webhook mode = no sleeping).
 """
 
-from dotenv import load_dotenv
-load_dotenv()
-import os
+import asyncio
 import json
 import os
 from contextlib import asynccontextmanager
+
+from dotenv import load_dotenv
+load_dotenv()
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -96,32 +97,69 @@ register_admin_handlers(telegram_app)
 
 
 # --- FastAPI Lifespan ---------------------------------------------------------------------------------------
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Set webhook on startup, clean up on shutdown."""
+    """Set webhook or start polling on startup, clean up on shutdown."""
     webhook_url = os.environ.get("WEBHOOK_URL", "").rstrip("/")
-    await telegram_app.initialize()
-    webhook_kwargs = {
-        "url": f"{webhook_url}/webhook",
-        "allowed_updates": ["message", "callback_query"],
-    }
-    secret_token = os.environ.get("TELEGRAM_SECRET_TOKEN")
-    if secret_token:
-        webhook_kwargs["secret_token"] = secret_token
-    await telegram_app.bot.set_webhook(**webhook_kwargs)
-    print(f"[main] Webhook set to {webhook_url}/webhook (secret_token={'set' if secret_token else 'not set'})")
-    await telegram_app.start()
+    is_development = os.environ.get("ENVIRONMENT") == "development" or not webhook_url
 
-    # Init channel logger and announce startup
-    init_logger(telegram_app.bot)
-    init_notifier(telegram_app.bot)
-    await log_startup(webhook_url)
+    polling_task = None
+
+    if not is_development:
+        await telegram_app.initialize()
+        webhook_kwargs = {
+            "url": f"{webhook_url}/webhook",
+            "allowed_updates": ["message", "callback_query"],
+        }
+        secret_token = os.environ.get("TELEGRAM_SECRET_TOKEN")
+        if secret_token:
+            webhook_kwargs["secret_token"] = secret_token
+        await telegram_app.bot.set_webhook(**webhook_kwargs)
+        print(f"[main] Webhook set to {webhook_url}/webhook (secret_token={'set' if secret_token else 'not set'})")
+        await telegram_app.start()
+
+        # Init channel logger and announce startup
+        init_logger(telegram_app.bot)
+        init_notifier(telegram_app.bot)
+        await log_startup(webhook_url)
+    else:
+        await telegram_app.initialize()
+        await telegram_app.bot.delete_webhook()
+        await telegram_app.start()
+        print("[main] Development mode detected or no WEBHOOK_URL provided. Falling back to polling.")
+        
+        # Run polling loop as a background task
+        polling_task = asyncio.create_task(
+            telegram_app.updater.start_polling(
+                allowed_updates=["message", "callback_query"],
+                drop_pending_updates=True
+            )
+        )
+
+        init_logger(telegram_app.bot)
+        init_notifier(telegram_app.bot)
+        try:
+            await log_startup("polling")
+        except Exception:
+            pass
 
     yield
 
     await log_shutdown()
-    await telegram_app.stop()
-    await telegram_app.shutdown()
+    if is_development:
+        if polling_task:
+            polling_task.cancel()
+            try:
+                await polling_task
+            except asyncio.CancelledError:
+                pass
+        await telegram_app.updater.stop()
+        await telegram_app.stop()
+        await telegram_app.shutdown()
+    else:
+        await telegram_app.stop()
+        await telegram_app.shutdown()
 
 
 app = FastAPI(
@@ -173,6 +211,7 @@ async def telegram_webhook(
 # --- API Routes ------------------------------------------------------------------------------------------------
 # noqa: E402 — routes must be imported after `app` is fully built above
 from routes.auth import router as auth_router  # noqa: E402
+from routes.github_webhook import router as github_webhook_router  # noqa: E402
 from routes.register import router as register_router  # noqa: E402
 from routes.staged_files import router as staged_files_router  # noqa: E402
 from routes.sync import router as sync_router  # noqa: E402
