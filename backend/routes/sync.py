@@ -1,7 +1,7 @@
 import channel_logger
 from auth import require_api_key
 from fastapi import APIRouter, Depends, HTTPException
-from models.staged import SyncFilePayload, SyncFileResponse
+from models.staged import MAX_FILE_SIZE, SyncFilePayload, SyncFileResponse
 from supabase_service import (
     get_user_by_telegram_id,
     update_active_repo,
@@ -9,7 +9,7 @@ from supabase_service import (
     upsert_staged_file,
 )
 
-MAX_FILE_SIZE = 10 * 1024 * 1024
+# MAX_FILE_SIZE is imported from models.staged — single source of truth
 
 router = APIRouter()
 
@@ -19,7 +19,6 @@ async def sync_file(payload: SyncFilePayload, _auth: str = Depends(require_api_k
         if payload.telegram_id != _auth:
             raise HTTPException(status_code=403, detail="Forbidden: telegram_id does not match authenticated user")
         # Step 1: Resolve user
-        user = get_user_by_telegram_id(_auth)
         user = get_user_by_telegram_id(payload.telegram_id)
         if not user:
             raise HTTPException(
