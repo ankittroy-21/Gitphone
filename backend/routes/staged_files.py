@@ -213,6 +213,6 @@ async def commit_direct(payload: DirectCommitPayload, telegram_id: str = Depends
         "commit_url": commit_url,
         "repo": repo,
         "branch": branch,
-        "files_committed": len(staged_files),
+        "files_committed": len(committed_ids),
         "conflict_files": result.get("conflict_files", []),
     }
