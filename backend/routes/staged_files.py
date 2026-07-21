@@ -9,6 +9,7 @@ POST /commit-direct                - commit directly from VS Code (no Telegram)
 import channel_logger
 from auth import require_api_key
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from github_service import github_service
 from pydantic import BaseModel
 from supabase_service import (
@@ -156,7 +157,8 @@ async def commit_direct(payload: DirectCommitPayload, telegram_id: str = Depends
             detail="No repo detected. Save a file so GitPhone can auto-detect your repo.",
         )
 
-    result = github_service.commit_files(
+    result = await run_in_threadpool(
+        github_service.commit_files,
         token=user["github_token"],
         repo_name=repo,
         branch=branch,
