@@ -19,7 +19,7 @@ def get_client(telegram_id: str | None = None) -> Client:
     Otherwise, returns the global service_role client.
     """
     url = os.environ["SUPABASE_URL"]
-    
+
     if telegram_id:
         jwt_secret = os.environ.get("SUPABASE_JWT_SECRET")
         if jwt_secret:
@@ -29,8 +29,8 @@ def get_client(telegram_id: str | None = None) -> Client:
             }
             token = jwt.encode(payload, jwt_secret, algorithm="HS256")
             return create_client(
-                url, 
-                os.environ["SUPABASE_KEY"], 
+                url,
+                os.environ["SUPABASE_KEY"],
                 options=ClientOptions(headers={"Authorization": f"Bearer {token}"})
             )
         else:
