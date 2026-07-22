@@ -5,17 +5,41 @@ Uses ONE central Supabase (ours). Users isolated by telegram_id.
 
 import os
 
-from supabase import Client, create_client
+import jwt
+from supabase import Client, ClientOptions, create_client
 
 # --- Client Initialization ------------------------------------------------------------------------------
 _supabase: Client | None = None
 
 
-def get_client() -> Client:
+def get_client(telegram_id: str | None = None) -> Client:
+    """
+    Returns a Supabase client. 
+    If telegram_id is provided, returns a client authenticated with a custom JWT for RLS.
+    Otherwise, returns the global service_role client.
+    """
+    url = os.environ["SUPABASE_URL"]
+    
+    if telegram_id:
+        jwt_secret = os.environ.get("SUPABASE_JWT_SECRET")
+        if jwt_secret:
+            payload = {
+                "role": "authenticated",
+                "sub": telegram_id,
+            }
+            token = jwt.encode(payload, jwt_secret, algorithm="HS256")
+            return create_client(
+                url, 
+                os.environ["SUPABASE_KEY"], 
+                options=ClientOptions(headers={"Authorization": f"Bearer {token}"})
+            )
+        else:
+            print("[supabase] WARNING: SUPABASE_JWT_SECRET not found, falling back to service_role client")
+
+    # Global service_role client
     global _supabase
     if _supabase is None:
-        url = os.environ["YOUR_SUPABASE_URL"]
-        key = os.environ["YOUR_SUPABASE_KEY"]
+        key = os.environ["SUPABASE_KEY"]
         _supabase = create_client(url, key)
     return _supabase
 
@@ -25,7 +49,7 @@ def get_client() -> Client:
 def get_user_by_telegram_id(telegram_id: str) -> dict | None:
     """Returns user row or None if not registered."""
     try:
-        result = get_client().table("users") \
+        result = get_client(telegram_id).table("users") \
             .select("*") \
             .eq("telegram_id", telegram_id) \
             .execute()
@@ -38,7 +62,8 @@ def get_user_by_telegram_id(telegram_id: str) -> dict | None:
 def upsert_user(user: dict) -> dict | None:
     """Insert or update user by telegram_id. Returns saved row."""
     try:
-        result = get_client().table("users") \
+        telegram_id = user.get("telegram_id")
+        result = get_client(telegram_id).table("users") \
             .upsert(user, on_conflict="telegram_id") \
             .execute()
         return result.data[0] if result.data else None
@@ -50,7 +75,7 @@ def upsert_user(user: dict) -> dict | None:
 def update_last_active(telegram_id: str) -> None:
     """Touch last_active timestamp for keepalive tracking."""
     try:
-        get_client().table("users") \
+        get_client(telegram_id).table("users") \
             .update({"last_active": "now()"}) \
             .eq("telegram_id", telegram_id) \
             .execute()
@@ -68,8 +93,8 @@ def upsert_staged_file(payload: dict) -> dict | None:
     Returns the saved row.
     """
     try:
-        db = get_client()
         telegram_id = payload["telegram_id"]
+        db = get_client(telegram_id)
         filepath = payload["filepath"]
 
         # Check for existing pending diff for this file
@@ -108,7 +133,7 @@ def upsert_staged_file(payload: dict) -> dict | None:
 def get_pending_files(telegram_id: str) -> list[dict]:
     """Returns all pending staged files for a user, oldest first."""
     try:
-        result = get_client().table("staged_files") \
+        result = get_client(telegram_id).table("staged_files") \
             .select("*") \
             .eq("telegram_id", telegram_id) \
             .eq("status", "pending") \
@@ -126,7 +151,8 @@ def get_pending_files(telegram_id: str) -> list[dict]:
 def insert_commit_log(log: dict) -> None:
     """Record a successful commit in the audit log."""
     try:
-        get_client().table("commit_log") \
+        telegram_id = log.get("telegram_id")
+        get_client(telegram_id).table("commit_log") \
             .insert(log) \
             .execute()
     except Exception as e:
@@ -136,7 +162,7 @@ def insert_commit_log(log: dict) -> None:
 def get_recent_commits(telegram_id: str, limit: int = 10) -> list[dict]:
     """Returns the last N commits for a user, newest first."""
     try:
-        result = get_client().table("commit_log") \
+        result = get_client(telegram_id).table("commit_log") \
             .select("*") \
             .eq("telegram_id", telegram_id) \
             .order("committed_at", desc=True) \
@@ -153,7 +179,7 @@ def get_recent_commits(telegram_id: str, limit: int = 10) -> list[dict]:
 def update_active_repo(telegram_id: str, active_repo: str, active_branch: str) -> None:
     """Update the user's currently active repo/branch (auto-detected from VS Code)."""
     try:
-        get_client().table("users") \
+        get_client(telegram_id).table("users") \
             .update({"active_repo": active_repo, "active_branch": active_branch}) \
             .eq("telegram_id", telegram_id) \
             .execute()
@@ -164,7 +190,7 @@ def update_active_repo(telegram_id: str, active_repo: str, active_branch: str) -
 def update_branch(telegram_id: str, branch: str) -> None:
     """Update a user's active branch manually (from /branch command)."""
     try:
-        get_client().table("users") \
+        get_client(telegram_id).table("users") \
             .update({"active_branch": branch, "branch": branch}) \
             .eq("telegram_id", telegram_id) \
             .execute()
@@ -182,7 +208,7 @@ def get_pending_files_by_repo(telegram_id: str) -> dict[str, list[dict]]:
         user = get_user_by_telegram_id(telegram_id)
         fallback_repo = (user or {}).get("active_repo") or (user or {}).get("default_repo", "unknown")
 
-        result = get_client().table("staged_files") \
+        result = get_client(telegram_id).table("staged_files") \
             .select("*") \
             .eq("telegram_id", telegram_id) \
             .eq("status", "pending") \
@@ -203,7 +229,7 @@ def get_pending_files_by_repo(telegram_id: str) -> dict[str, list[dict]]:
 def unstage_file_by_path(telegram_id: str, filepath: str) -> bool:
     """Remove a specific pending staged file by filepath. Returns True if found."""
     try:
-        db = get_client()
+        db = get_client(telegram_id)
         result = db.table("staged_files") \
             .select("id") \
             .eq("telegram_id", telegram_id) \
@@ -223,7 +249,7 @@ def unstage_file_by_path(telegram_id: str, filepath: str) -> bool:
 def clear_all_staged(telegram_id: str) -> int:
     """Cancel all pending staged files for a user. Returns count cleared."""
     try:
-        db = get_client()
+        db = get_client(telegram_id)
         result = db.table("staged_files") \
             .select("id") \
             .eq("telegram_id", telegram_id) \
@@ -246,7 +272,7 @@ def sync_pending_state(telegram_id: str, current_filepaths: list[str]) -> int:
     Returns the count of files synchronized.
     """
     try:
-        db = get_client()
+        db = get_client(telegram_id)
         # 1. Get all pending files for this user
         result = db.table("staged_files") \
             .select("id, filepath") \
@@ -388,7 +414,7 @@ def save_device_flow_state(telegram_id: str, state: dict) -> bool:
     """Store GitHub Device Flow state (device_code, expires_at) in users table."""
     try:
         import json
-        get_client().table("users") \
+        get_client(telegram_id).table("users") \
             .update({"device_flow_state": json.dumps(state)}) \
             .eq("telegram_id", telegram_id) \
             .execute()
@@ -402,7 +428,7 @@ def get_device_flow_state(telegram_id: str) -> dict | None:
     """Retrieve pending Device Flow state for a user."""
     try:
         import json
-        result = get_client().table("users") \
+        result = get_client(telegram_id).table("users") \
             .select("device_flow_state") \
             .eq("telegram_id", telegram_id) \
             .single() \
@@ -419,7 +445,7 @@ def get_device_flow_state(telegram_id: str) -> dict | None:
 def delete_device_flow_state(telegram_id: str) -> bool:
     """Clear device flow state after auth completes or expires."""
     try:
-        get_client().table("users") \
+        get_client(telegram_id).table("users") \
             .update({"device_flow_state": None}) \
             .eq("telegram_id", telegram_id) \
             .execute()
@@ -432,7 +458,7 @@ def delete_device_flow_state(telegram_id: str) -> bool:
 def update_github_token(telegram_id: str, token: str) -> bool:
     """Update stored GitHub OAuth token after Device Flow authorization."""
     try:
-        get_client().table("users") \
+        get_client(telegram_id).table("users") \
             .update({"github_token": token}) \
             .eq("telegram_id", telegram_id) \
             .execute()
