@@ -14,7 +14,7 @@ _supabase: Client | None = None
 
 def get_client(telegram_id: str | None = None) -> Client:
     """
-    Returns a Supabase client. 
+    Returns a Supabase client.
     If telegram_id is provided, returns a client authenticated with a custom JWT for RLS.
     Otherwise, returns the global service_role client.
     """

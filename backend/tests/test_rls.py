@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 # Load env vars before importing get_client
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
-from supabase_service import get_client
+from supabase_service import get_client  # noqa: E402
 
 
 def test_rls():
