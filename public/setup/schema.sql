@@ -89,3 +89,17 @@ CREATE TABLE commit_log (
 
 CREATE INDEX idx_commit_log_user ON commit_log(user_id, committed_at DESC);
 CREATE INDEX idx_commit_log_telegram ON commit_log(telegram_id, committed_at DESC);
+
+-- ============================================================
+-- ROW LEVEL SECURITY (RLS)
+-- Isolate data so users can only access their own records
+-- ============================================================
+
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "User isolation" ON users FOR ALL USING (telegram_id = current_setting('request.jwt.claim.sub', true));
+
+ALTER TABLE staged_files ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "User isolation" ON staged_files FOR ALL USING (telegram_id = current_setting('request.jwt.claim.sub', true));
+
+ALTER TABLE commit_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "User isolation" ON commit_log FOR ALL USING (telegram_id = current_setting('request.jwt.claim.sub', true));
