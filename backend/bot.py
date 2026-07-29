@@ -35,6 +35,7 @@ from github_service import github_service
 from supabase_service import (
     ban_user,
     clear_all_staged,
+    clear_github_token,
     count_stats,
     get_all_users,
     get_pending_files,
@@ -1130,13 +1131,23 @@ async def commit_now_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         return WAITING_PROTECTED_BRANCH_NAME
 
     else:
-        error_msg = result.get('message', 'Unknown error')
-        await channel_logger.log_commit_failed(telegram_id, active_repo, error_msg)
-        await query.edit_message_text(
-            f"[X] *Commit failed.*\n\n"
-            f"Error: {error_msg}\n\n"
-            f"Your staged files are safe. Try /files again."
-        )
+        if result.get("error") == "invalid_token":
+            clear_github_token(telegram_id)
+            await channel_logger.log_commit_failed(telegram_id, active_repo, "invalid_token")
+            await query.edit_message_text(
+                "🔑 *Your GitHub token has expired or been revoked.*\n\n"
+                "Your staged files are safe — no changes were made.\n\n"
+                "Please run /auth to reconnect your GitHub account and try again.",
+                parse_mode=ParseMode.MARKDOWN
+            )
+        else:
+            error_msg = result.get('message', 'Unknown error')
+            await channel_logger.log_commit_failed(telegram_id, active_repo, error_msg)
+            await query.edit_message_text(
+                f"[X] *Commit failed.*\n\n"
+                f"Error: {error_msg}\n\n"
+                f"Your staged files are safe. Try /files again."
+            )
 
     context.user_data.clear()
     return ConversationHandler.END
@@ -1211,9 +1222,19 @@ async def commit_force_callback(update: Update, context: ContextTypes.DEFAULT_TY
             parse_mode=ParseMode.MARKDOWN
         )
     else:
-        error_msg = result.get('message', 'Unknown error')
-        await channel_logger.log_commit_failed(telegram_id, active_repo, error_msg)
-        await query.edit_message_text(f"[X] Force commit failed: {error_msg}")
+        if result.get("error") == "invalid_token":
+            clear_github_token(telegram_id)
+            await channel_logger.log_commit_failed(telegram_id, active_repo, "invalid_token")
+            await query.edit_message_text(
+                "🔑 *Your GitHub token has expired or been revoked.*\n\n"
+                "Your staged files are safe — no changes were made.\n\n"
+                "Please run /auth to reconnect your GitHub account and try again.",
+                parse_mode=ParseMode.MARKDOWN
+            )
+        else:
+            error_msg = result.get('message', 'Unknown error')
+            await channel_logger.log_commit_failed(telegram_id, active_repo, error_msg)
+            await query.edit_message_text(f"[X] Force commit failed: {error_msg}")
 
     context.user_data.clear()
     return ConversationHandler.END

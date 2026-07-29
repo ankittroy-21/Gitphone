@@ -441,3 +441,15 @@ def update_github_token(telegram_id: str, token: str) -> bool:
         print(f"[supabase] update_github_token error: {e}")
         return False
 
+
+def clear_github_token(telegram_id: str) -> bool:
+    """Clear a stale or revoked GitHub token so the user is prompted to re-authenticate."""
+    try:
+        get_client().table("users") \
+            .update({"github_token": None}) \
+            .eq("telegram_id", telegram_id) \
+            .execute()
+        return True
+    except Exception as e:
+        print(f"[supabase] clear_github_token error: {e}")
+        return False
