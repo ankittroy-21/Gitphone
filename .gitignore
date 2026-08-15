@@ -45,3 +45,7 @@ logs/
 # ── Local setup scripts (run locally, never commit) ──────────────────────────
 setup_*.ps1
 setup_*.sh
+
+# ── Local tunnel binaries (run locally, never commit) ────────────────────────
+cloudflared*
+ngrok*

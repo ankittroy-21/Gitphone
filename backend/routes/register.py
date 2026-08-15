@@ -33,6 +33,7 @@ async def register(payload: RegisterPayload):
         user_data = {
             "telegram_id": payload.telegram_id,
             "github_token": payload.github_token,
+            "github_username": (gh_result.get("username") or "").lower() or None,
             "default_repo": payload.default_repo,
             "branch": payload.branch or gh_result.get("default_branch", "main"),
             "api_key_hash": hashed_key,   # Never store the raw key

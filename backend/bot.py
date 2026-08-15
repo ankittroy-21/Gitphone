@@ -35,6 +35,7 @@ from github_service import github_service
 from supabase_service import (
     ban_user,
     clear_all_staged,
+    clear_github_token,
     count_stats,
     get_all_users,
     get_pending_files,
@@ -66,6 +67,33 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
+from telegram.constants import ParseMode
+
+from supabase_service import (
+    get_user_by_telegram_id,
+    upsert_user,
+    update_last_active,
+    get_pending_files,
+    get_pending_files_by_repo,
+    get_staged_files_by_ids,
+    mark_files_committed,
+    insert_commit_log,
+    get_recent_commits,
+    unstage_file_by_path,
+    clear_all_staged,
+    update_branch,
+    save_device_flow_state,
+    get_device_flow_state,
+    delete_device_flow_state,
+    update_github_token,
+    update_github_username,
+    ban_user,
+    unban_user,
+    revoke_api_key,
+    get_all_users,
+    count_stats,
+)
+from github_service import github_service
 
 # GitHub Device Flow endpoints
 GITHUB_CLIENT_ID     = os.environ.get("GITHUB_CLIENT_ID", "")
@@ -325,10 +353,13 @@ async def _poll_device_auth(
                 user = get_user_by_telegram_id(telegram_id)
                 if user:
                     update_github_token(telegram_id, token)
+                    if username:
+                        update_github_username(telegram_id, username)
                 else:
                     upsert_user({
                         "telegram_id": telegram_id,
                         "github_token": token,
+                        "github_username": (username or "").lower() or None,
                         "default_repo": "not-set", # Required column
                         "branch": "main"
                     })
@@ -413,7 +444,17 @@ async def set_repo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         )
         return
 
-    upsert_user({"telegram_id": telegram_id, "default_repo": new_repo, "active_repo": new_repo})
+    try:
+        upsert_user({
+            "telegram_id": telegram_id,
+            "default_repo": new_repo,
+            "active_repo": new_repo
+        })
+    except Exception as e:
+        print(f"[bot] Error updating repo: {e}")
+        await update.message.reply_text("[X] Failed to update repo. Please try again.")
+        return
+        
     default_branch = result.get("default_branch", "main")
     await update.message.reply_text(
         f"[OK] Default repo set to `{new_repo}`\n"
@@ -1130,13 +1171,23 @@ async def commit_now_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         return WAITING_PROTECTED_BRANCH_NAME
 
     else:
-        error_msg = result.get('message', 'Unknown error')
-        await channel_logger.log_commit_failed(telegram_id, active_repo, error_msg)
-        await query.edit_message_text(
-            f"[X] *Commit failed.*\n\n"
-            f"Error: {error_msg}\n\n"
-            f"Your staged files are safe. Try /files again."
-        )
+        if result.get("error") == "invalid_token":
+            clear_github_token(telegram_id)
+            await channel_logger.log_commit_failed(telegram_id, active_repo, "invalid_token")
+            await query.edit_message_text(
+                "🔑 *Your GitHub token has expired or been revoked.*\n\n"
+                "Your staged files are safe — no changes were made.\n\n"
+                "Please run /auth to reconnect your GitHub account and try again.",
+                parse_mode=ParseMode.MARKDOWN
+            )
+        else:
+            error_msg = result.get('message', 'Unknown error')
+            await channel_logger.log_commit_failed(telegram_id, active_repo, error_msg)
+            await query.edit_message_text(
+                f"[X] *Commit failed.*\n\n"
+                f"Error: {error_msg}\n\n"
+                f"Your staged files are safe. Try /files again."
+            )
 
     context.user_data.clear()
     return ConversationHandler.END
@@ -1211,9 +1262,19 @@ async def commit_force_callback(update: Update, context: ContextTypes.DEFAULT_TY
             parse_mode=ParseMode.MARKDOWN
         )
     else:
-        error_msg = result.get('message', 'Unknown error')
-        await channel_logger.log_commit_failed(telegram_id, active_repo, error_msg)
-        await query.edit_message_text(f"[X] Force commit failed: {error_msg}")
+        if result.get("error") == "invalid_token":
+            clear_github_token(telegram_id)
+            await channel_logger.log_commit_failed(telegram_id, active_repo, "invalid_token")
+            await query.edit_message_text(
+                "🔑 *Your GitHub token has expired or been revoked.*\n\n"
+                "Your staged files are safe — no changes were made.\n\n"
+                "Please run /auth to reconnect your GitHub account and try again.",
+                parse_mode=ParseMode.MARKDOWN
+            )
+        else:
+            error_msg = result.get('message', 'Unknown error')
+            await channel_logger.log_commit_failed(telegram_id, active_repo, error_msg)
+            await query.edit_message_text(f"[X] Force commit failed: {error_msg}")
 
     context.user_data.clear()
     return ConversationHandler.END
@@ -1322,23 +1383,27 @@ async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     user_commands = (
         "\U0001f6e0 *GitPhone Commands*\n\n"
-        "[Files] *Staging & Commits*\n"
-        "/files   - Select staged files & commit\n"
-        "/preview - Preview diffs before committing\n"
-        "/unstage - Remove a file from staged list\n"
-        "/clear   - Clear all staged files\n\n"
-        "[Repo] *Repo & Branch*\n"
-        "/repo    - Show active repo (auto-detected)\n"
-        "/branch  - Switch branch\n"
-        "/log     - Recent commit history\n"
-        "/status  - Connection & repo status\n\n"
-        "\u2699\ufe0f *Account*\n"
-        "/auth    - Update GitHub token\n"
-        "/start   - Setup or reconfigure\n"
-        "/cancel  - Cancel current operation\n"
-        "/help    - This message\n\n"
-        "\U0001f4a1 *Tip:* Save any file in VS Code - it auto-stages and "
-        "the repo is auto-detected from your git remote."
+        "\U0001f4c2 *Getting Started*\n"
+        "`/start`   - Register or welcome back\n"
+        "`/auth`    - Link your GitHub account (Device Flow)\n"
+        "`/help`    - Show this help message\n"
+        "`/cancel`  - Cancel the current operation\n\n"
+
+        "\U0001f4c1 *Staging & Commits*\n"
+        "`/files`   - View and select staged files to commit\n"
+        "`/preview` - Preview diffs before committing\n"
+        "`/unstage` - Remove a specific file from the staged list\n"
+        "`/clear`   - Wipe your entire remote staging area\n"
+        "`/log`     - View your recent GitPhone commit history\n\n"
+
+        "\U0001f4e6 *Repository*\n"
+        "`/repo`    - Show your active repository\n"
+        "`/branch`  - Switch or create branches\n"
+        "`/status`  - Check connection & system health\n\n"
+
+        "\U0001f4a1 *Tip:* Save any file in VS Code and it will "
+        "automatically stage it. GitPhone also auto-detects your "
+        "repository from the current git remote."
     )
 
     admin_commands = (

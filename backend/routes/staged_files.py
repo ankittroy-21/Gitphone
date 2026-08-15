@@ -6,8 +6,10 @@ POST /staged-files/clear-all       - clear all staged files for a user
 POST /commit-direct                - commit directly from VS Code (no Telegram)
 """
 
+import channel_logger
 from auth import require_api_key
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from github_service import github_service
 from pydantic import BaseModel
 from supabase_service import (
@@ -15,6 +17,7 @@ from supabase_service import (
     get_pending_files,
     get_staged_files_by_ids,
     get_user_by_telegram_id,
+    insert_commit_log,
     mark_files_committed,
     sync_pending_state,
 )
@@ -89,19 +92,14 @@ async def list_staged_files(telegram_id: str, _auth: str = Depends(require_api_k
 # --- POST /staged-files/clear-all ---------------------------------------------
 
 @router.post("/staged-files/clear-all")
-async def clear_all_route(request: Request, _auth: str = Depends(require_api_key)):
-    """Clear all pending staged files for the requesting user."""
-    telegram_id = request.headers.get("X-Telegram-Id")
-    if not telegram_id:
-        raise HTTPException(status_code=400, detail="X-Telegram-Id header required")
-
+async def clear_all_route(telegram_id: str = Depends(require_api_key)):
+    """Clear all pending staged files for the requesting (authenticated) user."""
     user = get_user_by_telegram_id(telegram_id)
     if not user:
         raise HTTPException(status_code=401, detail="User not registered.")
-
+ 
     clear_all_staged(telegram_id)
     return {"ok": True, "message": "All staged files cleared."}
-
 
 # --- POST /commit-direct ------------------------------------------------------
 
@@ -138,6 +136,7 @@ async def commit_direct(payload: DirectCommitPayload, _auth: str = Depends(requi
         raise HTTPException(status_code=400, detail="No file IDs provided.")
 
     staged_files = get_staged_files_by_ids(payload.file_ids)
+    staged_files = [f for f in staged_files if f["telegram_id"] == telegram_id]
     if not staged_files:
         raise HTTPException(status_code=404, detail="No staged files found with given IDs.")
 
@@ -154,7 +153,8 @@ async def commit_direct(payload: DirectCommitPayload, _auth: str = Depends(requi
             detail="No repo detected. Save a file so GitPhone can auto-detect your repo.",
         )
 
-    result = github_service.commit_files(
+    result = await run_in_threadpool(
+        github_service.commit_files,
         token=user["github_token"],
         repo_name=repo,
         branch=branch,
@@ -169,15 +169,45 @@ async def commit_direct(payload: DirectCommitPayload, _auth: str = Depends(requi
                 status_code=409,
                 detail=f"Conflict in: {', '.join(conflict_files)}. Use /files in Telegram \u2192 Force Commit.",
             )
+        if result.get("error") == "invalid_token":
+            raise HTTPException(
+                status_code=401,
+                detail="GitHub token is invalid or expired. Please re-authenticate via /auth in Telegram.",
+            )
         raise HTTPException(
             status_code=500,
             detail=result.get("message", "GitHub commit failed."),
         )
 
-    committed_ids = [f["id"] for f in staged_files]
+    committed_ids = result.get("committed_ids", [f["id"] for f in staged_files])
     mark_files_committed(committed_ids)
 
     commit_sha = result.get("commit_sha", "")
+
+    # Record in commit_log so the Telegram /log command shows VS Code commits too
+    committed_paths = [f["filepath"] for f in staged_files if f["id"] in committed_ids]
+    insert_commit_log({
+        "telegram_id": telegram_id,
+        "user_id": user["id"],
+        "commit_sha": commit_sha or "unknown",
+        "message": payload.commit_message,
+        "files": committed_paths,
+        "repo": repo,
+        "branch": branch,
+        "was_scheduled": False,
+    })
+
+    # Notify admin monitoring channel — mirrors the Telegram commit path in bot.py
+    await channel_logger.log_commit(
+        telegram_id=telegram_id,
+        repo=repo,
+        branch=branch,
+        commit_sha=commit_sha or "unknown",
+        message=payload.commit_message,
+        files=committed_paths,
+        was_forced=False,
+    )
+
     commit_url = f"https://github.com/{repo}/commit/{commit_sha}" if commit_sha else ""
 
     return {
@@ -186,6 +216,6 @@ async def commit_direct(payload: DirectCommitPayload, _auth: str = Depends(requi
         "commit_url": commit_url,
         "repo": repo,
         "branch": branch,
-        "files_committed": len(staged_files),
+        "files_committed": len(committed_ids),
         "conflict_files": result.get("conflict_files", []),
     }
