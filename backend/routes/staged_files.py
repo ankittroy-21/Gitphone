@@ -169,6 +169,11 @@ async def commit_direct(payload: DirectCommitPayload, _auth: str = Depends(requi
                 status_code=409,
                 detail=f"Conflict in: {', '.join(conflict_files)}. Use /files in Telegram \u2192 Force Commit.",
             )
+        if result.get("error") == "invalid_token":
+            raise HTTPException(
+                status_code=401,
+                detail="GitHub token is invalid or expired. Please re-authenticate via /auth in Telegram.",
+            )
         raise HTTPException(
             status_code=500,
             detail=result.get("message", "GitHub commit failed."),

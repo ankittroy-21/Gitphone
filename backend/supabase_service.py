@@ -495,4 +495,3 @@ def get_user_by_github_username(github_username: str) -> Optional[dict]:
     except Exception as e:
         print(f"[supabase] get_user_by_github_username error: {e}")
         return None
-

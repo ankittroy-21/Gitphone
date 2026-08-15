@@ -279,6 +279,8 @@ class GitHubService:
             }
 
         except GithubException as e:
+            if e.status == 401:
+                return {"ok": False, "error": "invalid_token", "message": "GitHub token is invalid or expired. Please re-authenticate via /auth."}
             if e.status == 409:
                 return {"ok": False, "error": "conflict", "message": "SHA conflict on GitHub"}
             if e.status == 422:
