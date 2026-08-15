@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, validator
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB in bytes
 
@@ -19,6 +19,18 @@ class SyncFilePayload(BaseModel):
         default="modify",
         description="Type of change: create / modify / delete"
     )
+
+    @field_validator("filepath")
+    @classmethod
+    def validate_filepath(cls, v: str) -> str:
+        v = v.strip()
+        if v.startswith(("/", "\\")):
+            raise ValueError("Absolute paths are not allowed")
+        if ".." in v:
+            raise ValueError("Path traversal is not allowed")
+        if len(v) > 500:
+            raise ValueError("Filepath is too long")
+        return v
 
     @validator("file_size")
     def check_size_limit(cls, v):
