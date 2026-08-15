@@ -4,12 +4,44 @@ Handles token validation, SHA fetching, file commits, branch management, and PR 
 """
 
 import base64
+import time
 
 from diff_service import apply_diff
 from github import Github, GithubException
 
 
 class GitHubService:
+
+    def _execute_with_retry(self, func, *args, **kwargs):
+        """
+        Executes a GitHub API call with retry logic for Secondary Rate Limits (Abuse limits).
+        Catches 403 Forbidden caused by rapid sequential requests and respects Retry-After headers.
+        """
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                return func(*args, **kwargs)
+            except GithubException as e:
+                is_rate_limit = False
+                if e.status == 403:
+                    msg = str(e.data).lower() if e.data else ""
+                    if "secondary rate" in msg or "abuse" in msg or "rate limit" in msg:
+                        is_rate_limit = True
+
+                if is_rate_limit and attempt < max_retries - 1:
+                    retry_after = 60
+                    if hasattr(e, "headers") and e.headers and "retry-after" in e.headers:
+                        try:
+                            retry_after = int(e.headers["retry-after"])
+                        except ValueError:
+                            pass
+                    print(
+                        f"[github_service] Secondary rate limit hit. "
+                        f"Retrying after {retry_after}s (attempt {attempt + 1}/{max_retries})..."
+                    )
+                    time.sleep(retry_after)
+                    continue
+                raise
 
     def validate_token_and_repo(self, token: str, repo_name: str) -> dict:
         """
@@ -145,7 +177,11 @@ class GitHubService:
             conflict_files: list[str] = []
             committed_ids: list[str] = []
 
-            for staged in staged_files:
+            for idx, staged in enumerate(staged_files):
+                if idx > 0:
+                    # Proactively sleep 1s between file commits per GitHub's integrator best practices
+                    time.sleep(1)
+
                 filepath = staged["filepath"]
                 stored_base_sha = staged["base_sha"]
                 is_binary = staged.get("is_binary", False)
@@ -168,7 +204,8 @@ class GitHubService:
                             if file_id:
                                 committed_ids.append(file_id)
                             continue
-                        result = repo.delete_file(
+                        result = self._execute_with_retry(
+                            repo.delete_file,
                             path=filepath,
                             message=commit_message,
                             sha=current_sha,
@@ -201,14 +238,16 @@ class GitHubService:
 
                     # --- Commit to GitHub ---------------------------------------------------------
                     if not exists_on_gh:
-                        result = repo.create_file(
+                        result = self._execute_with_retry(
+                            repo.create_file,
                             path=filepath,
                             message=commit_message,
                             content=content_to_commit,
                             branch=branch,
                         )
                     else:
-                        result = repo.update_file(
+                        result = self._execute_with_retry(
+                            repo.update_file,
                             path=filepath,
                             message=commit_message,
                             content=content_to_commit,

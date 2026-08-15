@@ -1,5 +1,5 @@
-fastapi>=0.141.1,<1.0.0
-uvicorn[standard]>=0.51.0,<1.0.0
+fastapi>=0.139.0,<1.0.0
+uvicorn[standard]>=0.50.1,<1.0.0
 python-telegram-bot==21.*
 PyGithub>=2.3.0,<3.0.0
 diff-match-patch>=20230430
@@ -8,3 +8,4 @@ python-dotenv>=1.0.0,<2.0.0
 pydantic>=2.13.4,<3.0.0
 httpx>=0.28.1,<1.0.0
 slowapi>=0.1.9
+PyJWT>=2.8.0,<3.0.0
